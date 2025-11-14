@@ -15,29 +15,49 @@ A full-stack web application for managing LEGO set inventory across multiple war
 ## Tech Stack
 
 ### Backend
-- **Django 5.1.4** - Web framework
-- **Django REST Framework 3.15.2** - API framework
+- **Django 5.2.8** - Web framework
+- **Django REST Framework 3.16.1** - API framework
 - **SQLite** - Database
 - **Beautiful Soup 4** - Web scraping
 - **django-cors-headers** - CORS handling
 
 ### Frontend
-- **React 18** - UI framework
-- **Vite 5** - Build tool and dev server
+- **React 19** - UI framework
+- **Vite 7** - Build tool and dev server
 - **Vanilla CSS** - Styling
 
 ## Prerequisites
 
 - **Python 3.8+** (Python 3.10+ recommended)
-- **Node.js 18+** (for Vite 5 compatibility)
+- **Node.js 18+** (see `frontend/.nvmrc` for exact version)
 - **npm** or **yarn**
+- **Git** (for cloning the repository)
+
+## Quick Start
+
+If you're setting up for the first time, follow these steps in order:
+
+1. **Clone the repository** and navigate to the project directory
+2. **Set up the backend**: Create virtual environment, install dependencies, run migrations
+3. **Set up the frontend**: Install Node.js version (if using nvm), install npm dependencies
+4. **Start the application**: Use the launch script or start both servers manually
+
+See the detailed setup instructions below.
 
 ## Local Development Setup
 
 ### 1. Clone the Repository
 
 ```bash
-cd "/Users/strahey/Cursor projects/mystock"
+# Clone the repository (replace with your actual repository URL)
+git clone git@github.com:strahey/MyStock.git
+cd mystock
+```
+
+If you already have the repository locally, navigate to the project directory:
+
+```bash
+cd mystock
 ```
 
 ### 2. Backend Setup
@@ -83,9 +103,42 @@ python manage.py createsuperuser
 
 ### 3. Frontend Setup
 
+#### Install Node.js Version (Recommended)
+
+If you're using `nvm` (Node Version Manager), the project includes a `.nvmrc` file:
+
+```bash
+cd frontend
+nvm use  # or nvm install if version not installed
+cd ..
+```
+
+#### Install Frontend Dependencies
+
 ```bash
 cd frontend
 npm install
+cd ..
+```
+
+### 4. Verify Setup
+
+Verify that everything is set up correctly:
+
+```bash
+# Check Python version
+python --version  # Should be 3.8+
+
+# Check Node.js version
+node --version  # Should be 18+
+
+# Verify Django is installed
+source venv/bin/activate
+python -c "import django; print(django.get_version())"  # Should show 5.2.8
+
+# Verify React/Vite is installed
+cd frontend
+npm list react vite  # Should show installed versions
 cd ..
 ```
 
@@ -153,6 +206,57 @@ lsof -ti:5173 | xargs kill -9
 
 # Or kill both at once
 lsof -ti:8000,5173 | xargs kill -9
+```
+
+## Useful Commands
+
+These commands require the virtual environment to be activated:
+
+```bash
+source venv/bin/activate
+```
+
+### Clear All Data from Database (Start Fresh)
+
+⚠️ **Warning**: This will delete ALL data including items, locations, inventory, and transaction history.
+
+```bash
+python manage.py clear_all_data
+```
+
+The command will prompt for confirmation. To skip the confirmation prompt:
+
+```bash
+python manage.py clear_all_data --confirm
+```
+
+### Delete a Specific Item from Database
+
+Delete an item by its `item_id`:
+
+```bash
+python manage.py delete_item <ITEM_ID>
+```
+
+Example:
+```bash
+python manage.py delete_item 75192
+```
+
+**Note**: Deleting an item will also delete all related inventory records, stock transactions, and journal entries (though journal entries preserve denormalized data).
+
+### Delete All Items with Zero Stock in All Locations
+
+Delete all items that have zero quantity at all locations (or no inventory records at all):
+
+```bash
+python manage.py delete_zero_stock_items
+```
+
+The command will prompt for confirmation. To skip the confirmation prompt:
+
+```bash
+python manage.py delete_zero_stock_items --confirm
 ```
 
 ## Accessing the Application
@@ -283,7 +387,9 @@ SQLite is used for simplicity. For production, consider PostgreSQL or MySQL.
 ### Frontend won't start
 - Check if port 5173 is already in use: `lsof -ti:5173`
 - Verify Node.js version: `node --version` (should be 18+)
+  - If using `nvm`, run `cd frontend && nvm use` to use the version specified in `.nvmrc`
 - Reinstall dependencies: `cd frontend && rm -rf node_modules && npm install`
+- Check for JSX syntax errors in the browser console or terminal output
 
 ### CORS errors
 - Make sure backend is running on port 8000

@@ -813,7 +813,7 @@ function App() {
                   checked={showOnlyInStock}
                   onChange={(e) => setShowOnlyInStock(e.target.checked)}
                 />
-                Show only items in stock (quantity > 0)
+                Show only items in stock (quantity &gt; 0)
               </label>
             </div>
 
