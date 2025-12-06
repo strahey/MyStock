@@ -9,9 +9,15 @@ class LocationSerializer(serializers.ModelSerializer):
 
 
 class ItemSerializer(serializers.ModelSerializer):
+    image_options = serializers.SerializerMethodField()
+    
     class Meta:
         model = Item
-        fields = ['id', 'item_id', 'name', 'description', 'image_url', 'created_at', 'updated_at']
+        fields = ['id', 'item_id', 'name', 'description', 'image_url', 'image_options', 'created_at', 'updated_at']
+    
+    def get_image_options(self, obj):
+        """Get image_options from context if available"""
+        return self.context.get('image_options', None)
 
 
 class StockTransactionSerializer(serializers.ModelSerializer):

@@ -32,6 +32,10 @@ function App() {
   const [editLocationName, setEditLocationName] = useState('')
   const [deletingLocation, setDeletingLocation] = useState(null)
   const [transferToLocationId, setTransferToLocationId] = useState('')
+  
+  // Image carousel state
+  const [showImageCarousel, setShowImageCarousel] = useState(false)
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0)
 
   useEffect(() => {
     // Load locations on mount
@@ -255,6 +259,92 @@ function App() {
   const getLocationQuantity = (locationId) => {
     const inv = inventory.find(inv => inv.location.id === locationId)
     return inv ? inv.quantity : 0
+  }
+
+  const handleImageSelect = async (imageUrl) => {
+    if (!item) return
+    
+    try {
+      setLoading(true)
+      const updatedItem = await api.updateItemImage(item.item_id, imageUrl)
+      setItem(updatedItem)
+      setShowImageCarousel(false)
+      setSuccess('Image updated successfully')
+    } catch (err) {
+      setError(err.message || 'Failed to update image')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const ImageCarousel = ({ images, currentImage, onSelect, onClose }) => {
+    const [currentIndex, setCurrentIndex] = useState(0)
+    
+    // Find index of current image
+    useEffect(() => {
+      const index = images.findIndex(img => img === currentImage)
+      if (index >= 0) {
+        setCurrentIndex(index)
+      } else {
+        setCurrentIndex(0)
+      }
+    }, [images, currentImage])
+    
+    const handlePrevious = () => {
+      setCurrentIndex((prev) => (prev > 0 ? prev - 1 : images.length - 1))
+    }
+    
+    const handleNext = () => {
+      setCurrentIndex((prev) => (prev < images.length - 1 ? prev + 1 : 0))
+    }
+    
+    const handleSelect = () => {
+      onSelect(images[currentIndex])
+    }
+    
+    return (
+      <div className="image-carousel-overlay" onClick={onClose}>
+        <div className="image-carousel-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="image-carousel-header">
+            <h3>Select Image</h3>
+            <button className="image-carousel-close" onClick={onClose}>×</button>
+          </div>
+          <div className="image-carousel-content">
+            <button className="image-carousel-nav image-carousel-prev" onClick={handlePrevious}>
+              ‹
+            </button>
+            <div className="image-carousel-main">
+              <img 
+                src={images[currentIndex]} 
+                alt={`Option ${currentIndex + 1}`}
+                className="image-carousel-image"
+              />
+              <div className="image-carousel-counter">
+                {currentIndex + 1} / {images.length}
+              </div>
+            </div>
+            <button className="image-carousel-nav image-carousel-next" onClick={handleNext}>
+              ›
+            </button>
+          </div>
+          <div className="image-carousel-thumbnails">
+            {images.map((img, idx) => (
+              <img
+                key={idx}
+                src={img}
+                alt={`Thumbnail ${idx + 1}`}
+                className={`image-carousel-thumbnail ${idx === currentIndex ? 'active' : ''}`}
+                onClick={() => setCurrentIndex(idx)}
+              />
+            ))}
+          </div>
+          <div className="image-carousel-actions">
+            <button className="btn-secondary" onClick={onClose}>Cancel</button>
+            <button className="btn-primary" onClick={handleSelect}>Select This Image</button>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   const loadJournalEntries = async () => {
@@ -509,6 +599,15 @@ function App() {
             {item.image_url && (
               <div className="product-image-container">
                 <img src={item.image_url} alt={item.name || item.item_id} className="product-image" />
+                {item.image_options && item.image_options.length > 1 && (
+                  <button 
+                    className="btn-link image-select-btn" 
+                    onClick={() => setShowImageCarousel(true)}
+                    type="button"
+                  >
+                    Select Different Image ({item.image_options.length} available)
+                  </button>
+                )}
               </div>
             )}
             {item.name && <p className="item-name">{item.name}</p>}
@@ -577,6 +676,15 @@ function App() {
             {item.image_url && (
               <div className="product-image-container">
                 <img src={item.image_url} alt={item.name || item.item_id} className="product-image" />
+                {item.image_options && item.image_options.length > 1 && (
+                  <button 
+                    className="btn-link image-select-btn" 
+                    onClick={() => setShowImageCarousel(true)}
+                    type="button"
+                  >
+                    Select Different Image ({item.image_options.length} available)
+                  </button>
+                )}
               </div>
             )}
             {item.name && <p className="item-name">{item.name}</p>}
@@ -620,6 +728,15 @@ function App() {
               {item.image_url && (
                 <div className="product-image-container">
                   <img src={item.image_url} alt={item.name || item.item_id} className="product-image" />
+                  {item.image_options && item.image_options.length > 1 && (
+                    <button 
+                      className="btn-link image-select-btn" 
+                      onClick={() => setShowImageCarousel(true)}
+                      type="button"
+                    >
+                      Select Different Image ({item.image_options.length} available)
+                    </button>
+                  )}
                 </div>
               )}
               <div className="item-header-text">
@@ -1097,6 +1214,15 @@ function App() {
           <div className="alert alert-success">
             {success}
           </div>
+        )}
+
+        {showImageCarousel && item && item.image_options && item.image_options.length > 1 && (
+          <ImageCarousel
+            images={item.image_options}
+            currentImage={item.image_url}
+            onSelect={handleImageSelect}
+            onClose={() => setShowImageCarousel(false)}
+          />
         )}
       </main>
     </div>

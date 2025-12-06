@@ -102,6 +102,21 @@ export const api = {
     return response.json()
   },
 
+  updateItemImage: async (itemId, imageUrl) => {
+    const response = await fetch(`${API_BASE_URL}/items/by-item-id/${itemId}/`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ image_url: imageUrl }),
+    })
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.detail || 'Failed to update item image')
+    }
+    return response.json()
+  },
+
   // Inventory
   getInventory: async (itemId) => {
     const response = await fetch(`${API_BASE_URL}/inventory/by-item-id/${itemId}/`)

@@ -129,6 +129,7 @@ class ItemViewSet(viewsets.ModelViewSet):
 
     def _fetch_product_info(self, item):
         """Fetch product info from web if not already present"""
+        product_info = None
         if not item.name or not item.image_url:
             product_info = scrape_lego_product_info(item.item_id)
             if product_info:
@@ -137,15 +138,31 @@ class ItemViewSet(viewsets.ModelViewSet):
                 if product_info.get('image_url') and not item.image_url:
                     item.image_url = product_info['image_url']
                 item.save()
+        return product_info
 
-    @action(detail=False, methods=['get'], url_path='by-item-id/(?P<item_id>[^/.]+)')
+    @action(detail=False, methods=['get', 'patch'], url_path='by-item-id/(?P<item_id>[^/.]+)')
     def by_item_id(self, request, item_id=None):
-        """Get item by item_id"""
+        """Get or update item by item_id"""
         try:
             item = Item.objects.get(item_id=item_id)
-            self._fetch_product_info(item)
-            serializer = self.get_serializer(item)
-            return Response(serializer.data)
+            
+            if request.method == 'PATCH':
+                # Update item (e.g., image_url)
+                serializer = self.get_serializer(item, data=request.data, partial=True)
+                serializer.is_valid(raise_exception=True)
+                serializer.save()
+                # Fetch product info to get updated image_options
+                product_info = self._fetch_product_info(item)
+                image_options = product_info.get('image_options') if product_info else None
+                serializer = self.get_serializer(item, context={'image_options': image_options})
+                return Response(serializer.data)
+            else:
+                # GET request
+                product_info = self._fetch_product_info(item)
+                # Get image_options from product_info if available
+                image_options = product_info.get('image_options') if product_info else None
+                serializer = self.get_serializer(item, context={'image_options': image_options})
+                return Response(serializer.data)
         except Item.DoesNotExist:
             return Response(
                 {'error': 'Item not found'},
@@ -157,8 +174,10 @@ class ItemViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         item = serializer.save()
-        self._fetch_product_info(item)
-        serializer = self.get_serializer(item)
+        product_info = self._fetch_product_info(item)
+        # Get image_options from product_info if available
+        image_options = product_info.get('image_options') if product_info else None
+        serializer = self.get_serializer(item, context={'image_options': image_options})
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
@@ -198,6 +217,7 @@ class StockTransactionViewSet(viewsets.ModelViewSet):
             item, created = Item.objects.get_or_create(item_id=item_id)
 
             # Fetch product info if this is a new item or info is missing
+            product_info = None
             if created or not item.name or not item.image_url:
                 product_info = scrape_lego_product_info(item_id)
                 if product_info:

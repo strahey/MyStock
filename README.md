@@ -29,7 +29,7 @@ A full-stack web application for managing LEGO set inventory across multiple war
 ## Prerequisites
 
 - **Python 3.8+** (Python 3.10+ recommended)
-- **Node.js 18+** (see `frontend/.nvmrc` for exact version)
+- **Node.js 20.19+ or 22.12+** (see `frontend/.nvmrc` for exact version)
 - **npm** or **yarn**
 - **Git** (for cloning the repository)
 
