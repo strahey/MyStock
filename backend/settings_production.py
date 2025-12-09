@@ -106,24 +106,18 @@ WSGI_APPLICATION = 'backend.wsgi.application'
 DATABASE_URL = os.getenv('DATABASE_URL')
 if DATABASE_URL:
     import dj_database_url
-    # Force IPv4 connection by replacing IPv6 addresses
+    # For Supabase IPv6 connections, we need to ensure proper configuration
     parsed_db = dj_database_url.parse(DATABASE_URL)
-    if parsed_db and 'HOST' in parsed_db:
-        # Check if host is IPv6 and try to force IPv4
-        import socket
-        try:
-            # Try to get IPv4 address if available
-            host = parsed_db['HOST']
-            if ':' in host and not host.startswith('['):  # IPv6 format
-                # Try to resolve to IPv4
-                try:
-                    ipv4_addr = socket.gethostbyname(host.split(':')[0])
-                    parsed_db['HOST'] = ipv4_addr
-                except socket.gaierror:
-                    # If DNS resolution fails, try direct IPv4 connection
-                    pass
-        except:
-            pass
+
+    # Add SSL mode for Supabase connections
+    if 'OPTIONS' not in parsed_db:
+        parsed_db['OPTIONS'] = {}
+    parsed_db['OPTIONS']['sslmode'] = 'require'
+
+    # Add connection timeout and other optimizations
+    parsed_db['OPTIONS']['connect_timeout'] = 10
+    parsed_db['OPTIONS']['application_name'] = 'MyStock'
+
     DATABASES = {
         'default': parsed_db
     }
@@ -137,6 +131,7 @@ else:
             'HOST': os.getenv('DB_HOST', ''),
             'PORT': os.getenv('DB_PORT', '5432'),
             'OPTIONS': {
+                'sslmode': 'require',
                 'connect_timeout': 10,
             }
         }
