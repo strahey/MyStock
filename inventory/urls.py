@@ -1,11 +1,18 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
+from rest_framework_simplejwt.views import TokenRefreshView
 from .views import (
     LocationViewSet,
     ItemViewSet,
     StockTransactionViewSet,
     InventoryViewSet,
     TransactionJournalViewSet
+)
+from .auth_views import (
+    GoogleLoginView,
+    GoogleCallbackView,
+    GoogleTokenLoginView,
+    UserProfileView
 )
 
 router = DefaultRouter()
@@ -17,5 +24,11 @@ router.register(r'journal', TransactionJournalViewSet, basename='journal')
 
 urlpatterns = [
     path('', include(router.urls)),
+    # Authentication endpoints
+    path('auth/google/', GoogleLoginView.as_view(), name='google_login'),
+    path('auth/google/callback/', GoogleCallbackView.as_view(), name='google_callback'),
+    path('auth/login/', GoogleTokenLoginView.as_view(), name='token_login'),
+    path('auth/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('auth/me/', UserProfileView.as_view(), name='user_profile'),
 ]
 

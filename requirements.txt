@@ -1,6 +1,9 @@
 Django==5.2.8
 djangorestframework==3.16.1
+djangorestframework-simplejwt==5.3.1
 django-cors-headers==4.9.0
+django-allauth==0.57.0
+python-dotenv==1.0.0
 requests==2.32.5
 beautifulsoup4==4.14.2
 lxml==6.0.2

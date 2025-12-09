@@ -14,8 +14,15 @@ from .scraper import scrape_lego_product_info
 
 
 class LocationViewSet(viewsets.ModelViewSet):
-    queryset = Location.objects.all()
     serializer_class = LocationSerializer
+    
+    def get_queryset(self):
+        """Filter locations by current user"""
+        return Location.objects.filter(user=self.request.user)
+    
+    def perform_create(self, serializer):
+        """Associate location with current user"""
+        serializer.save(user=self.request.user)
     
     def destroy(self, request, *args, **kwargs):
         """
@@ -24,8 +31,11 @@ class LocationViewSet(viewsets.ModelViewSet):
         """
         location = self.get_object()
         
-        # Check if location has any inventory
-        has_inventory = Inventory.objects.filter(location=location).exclude(quantity=0).exists()
+        # Check if location has any inventory (user-specific)
+        has_inventory = Inventory.objects.filter(
+            user=request.user,
+            location=location
+        ).exclude(quantity=0).exists()
         
         # Get transfer_to_location_id if provided
         transfer_to_location_id = request.data.get('transfer_to_location_id')
@@ -34,22 +44,29 @@ class LocationViewSet(viewsets.ModelViewSet):
             if transfer_to_location_id:
                 # Transfer inventory to another location
                 try:
-                    transfer_to_location = Location.objects.get(id=transfer_to_location_id)
+                    transfer_to_location = Location.objects.get(
+                        id=transfer_to_location_id,
+                        user=request.user
+                    )
                     if transfer_to_location.id == location.id:
                         return Response(
                             {'error': 'Cannot transfer inventory to the same location'},
                             status=status.HTTP_400_BAD_REQUEST
                         )
                     
-                    # Transfer all inventory
-                    inventories_to_transfer = Inventory.objects.filter(location=location).exclude(quantity=0)
+                    # Transfer all inventory (user-specific)
+                    inventories_to_transfer = Inventory.objects.filter(
+                        user=request.user,
+                        location=location
+                    ).exclude(quantity=0)
                     for inv in inventories_to_transfer:
                         # Capture quantities before transfer
                         source_quantity_before = inv.quantity
                         source_quantity_after = 0
                         
-                        # Get or create inventory at target location
+                        # Get or create inventory at target location (user-specific)
                         target_inv, created = Inventory.objects.get_or_create(
+                            user=request.user,
                             item=inv.item,
                             location=transfer_to_location,
                             defaults={'quantity': 0}
@@ -61,6 +78,7 @@ class LocationViewSet(viewsets.ModelViewSet):
                         
                         # Create journal entry for source location (decrease)
                         TransactionJournal.objects.create(
+                            user=request.user,
                             item=inv.item,  # Foreign key (may become null)
                             location=location,  # Foreign key (will become null after deletion)
                             item_id_str=inv.item.item_id,  # Denormalized
@@ -76,6 +94,7 @@ class LocationViewSet(viewsets.ModelViewSet):
                         
                         # Create journal entry for target location (increase)
                         TransactionJournal.objects.create(
+                            user=request.user,
                             item=inv.item,  # Foreign key (may become null)
                             location=transfer_to_location,  # Foreign key (may become null)
                             item_id_str=inv.item.item_id,  # Denormalized
@@ -99,8 +118,11 @@ class LocationViewSet(viewsets.ModelViewSet):
                         status=status.HTTP_404_NOT_FOUND
                     )
             else:
-                # No transfer location specified, prevent deletion if there's inventory
-                inventory_items = Inventory.objects.filter(location=location).exclude(quantity=0)
+                # No transfer location specified, prevent deletion if there's inventory (user-specific)
+                inventory_items = Inventory.objects.filter(
+                    user=request.user,
+                    location=location
+                ).exclude(quantity=0)
                 items_list = [f"{inv.item.item_id} ({inv.quantity})" for inv in inventory_items[:5]]
                 items_text = ', '.join(items_list)
                 if inventory_items.count() > 5:
@@ -124,7 +146,7 @@ class LocationViewSet(viewsets.ModelViewSet):
 
 
 class ItemViewSet(viewsets.ModelViewSet):
-    queryset = Item.objects.all()
+    queryset = Item.objects.all()  # Items are shared across users
     serializer_class = ItemSerializer
 
     def _fetch_product_info(self, item):
@@ -182,8 +204,11 @@ class ItemViewSet(viewsets.ModelViewSet):
 
 
 class StockTransactionViewSet(viewsets.ModelViewSet):
-    queryset = StockTransaction.objects.all()
     serializer_class = StockTransactionSerializer
+    
+    def get_queryset(self):
+        """Filter transactions by current user"""
+        return StockTransaction.objects.filter(user=self.request.user)
 
     def create(self, request, *args, **kwargs):
         try:
@@ -227,19 +252,21 @@ class StockTransactionViewSet(viewsets.ModelViewSet):
                         item.image_url = product_info['image_url']
                     item.save()
 
-            # Get the location
-            location = get_object_or_404(Location, id=location_id)
+            # Get the location (user-specific)
+            location = get_object_or_404(Location, id=location_id, user=request.user)
 
-            # Create the transaction
+            # Create the transaction (associate with user)
             transaction = StockTransaction.objects.create(
+                user=request.user,
                 item=item,
                 location=location,
                 transaction_type=transaction_type,
                 quantity=quantity
             )
 
-            # Update inventory
+            # Update inventory (user-specific)
             inventory, created = Inventory.objects.get_or_create(
+                user=request.user,
                 item=item,
                 location=location,
                 defaults={'quantity': 0}
@@ -262,9 +289,10 @@ class StockTransactionViewSet(viewsets.ModelViewSet):
             quantity_after = inventory.quantity
             inventory.save()
 
-            # Create journal entry with denormalized data
+            # Create journal entry with denormalized data (user-specific)
             try:
                 TransactionJournal.objects.create(
+                    user=request.user,
                     transaction=transaction,
                     item=item,  # Foreign key for querying (may become null if item deleted)
                     location=location,  # Foreign key for querying (may become null if location deleted)
@@ -303,15 +331,18 @@ class StockTransactionViewSet(viewsets.ModelViewSet):
 
 
 class InventoryViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = Inventory.objects.all()
     serializer_class = InventorySerializer
+    
+    def get_queryset(self):
+        """Filter inventory by current user"""
+        return Inventory.objects.filter(user=self.request.user)
 
     @action(detail=False, methods=['get'], url_path='by-item-id/(?P<item_id>[^/.]+)')
     def by_item_id(self, request, item_id=None):
-        """Get inventory for a specific item"""
+        """Get inventory for a specific item (user-specific)"""
         try:
             item = Item.objects.get(item_id=item_id)
-            inventory = Inventory.objects.filter(item=item)
+            inventory = Inventory.objects.filter(user=request.user, item=item)
             serializer = self.get_serializer(inventory, many=True)
             return Response(serializer.data)
         except Item.DoesNotExist:
@@ -322,12 +353,15 @@ class InventoryViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 class TransactionJournalViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = TransactionJournal.objects.all()
     serializer_class = TransactionJournalSerializer
+    
+    def get_queryset(self):
+        """Filter journal entries by current user"""
+        return TransactionJournal.objects.filter(user=self.request.user)
 
     @action(detail=False, methods=['get'])
     def by_item(self, request):
-        """Get journal entries for a specific item"""
+        """Get journal entries for a specific item (user-specific)"""
         item_id = request.query_params.get('item_id')
         if not item_id:
             return Response(
@@ -336,29 +370,38 @@ class TransactionJournalViewSet(viewsets.ReadOnlyModelViewSet):
             )
         
         # Use denormalized field to find entries (works even if item deleted)
-        journal_entries = TransactionJournal.objects.filter(item_id_str=item_id)
+        journal_entries = TransactionJournal.objects.filter(
+            user=request.user,
+            item_id_str=item_id
+        )
         serializer = self.get_serializer(journal_entries, many=True)
         return Response(serializer.data)
 
     @action(detail=False, methods=['get'])
     def by_location(self, request):
-        """Get journal entries for a specific location"""
+        """Get journal entries for a specific location (user-specific)"""
         location_id = request.query_params.get('location_id')
         location_name = request.query_params.get('location_name')
         
         if location_id:
             # Get location name first, then filter by denormalized field
             try:
-                location = Location.objects.get(id=location_id)
-                journal_entries = TransactionJournal.objects.filter(location_name_str=location.name)
+                location = Location.objects.get(id=location_id, user=request.user)
+                journal_entries = TransactionJournal.objects.filter(
+                    user=request.user,
+                    location_name_str=location.name
+                )
             except Location.DoesNotExist:
                 return Response(
                     {'error': 'Location not found'},
                     status=status.HTTP_404_NOT_FOUND
                 )
         elif location_name:
-            # Filter directly by denormalized location name
-            journal_entries = TransactionJournal.objects.filter(location_name_str=location_name)
+            # Filter directly by denormalized location name (user-specific)
+            journal_entries = TransactionJournal.objects.filter(
+                user=request.user,
+                location_name_str=location_name
+            )
         else:
             return Response(
                 {'error': 'location_id or location_name parameter is required'},

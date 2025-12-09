@@ -1,9 +1,43 @@
 const API_BASE_URL = 'http://localhost:8000/api'
 
+// Helper function to get auth token
+const getAuthToken = () => {
+  return localStorage.getItem('authToken')
+}
+
+// Helper function to make authenticated requests
+const apiRequest = async (url, options = {}) => {
+  const token = getAuthToken()
+  const headers = {
+    'Content-Type': 'application/json',
+    ...options.headers,
+  }
+  
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`
+  }
+  
+  const response = await fetch(`${API_BASE_URL}${url}`, {
+    ...options,
+    headers,
+  })
+  
+  if (response.status === 401) {
+    // Token expired or invalid - clear auth and redirect to login
+    localStorage.removeItem('authToken')
+    localStorage.removeItem('authUser')
+    localStorage.removeItem('refreshToken')
+    window.location.href = '/'
+    throw new Error('Unauthorized - please log in again')
+  }
+  
+  return response
+}
+
 export const api = {
   // Locations
   getLocations: async () => {
-    const response = await fetch(`${API_BASE_URL}/locations/`)
+    const response = await apiRequest('/locations/')
     if (!response.ok) {
       throw new Error('Failed to load locations')
     }
@@ -11,11 +45,8 @@ export const api = {
   },
 
   createLocation: async (name) => {
-    const response = await fetch(`${API_BASE_URL}/locations/`, {
+    const response = await apiRequest('/locations/', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
       body: JSON.stringify({ name }),
     })
     if (!response.ok) {
@@ -26,11 +57,8 @@ export const api = {
   },
 
   updateLocation: async (id, name) => {
-    const response = await fetch(`${API_BASE_URL}/locations/${id}/`, {
+    const response = await apiRequest(`/locations/${id}/`, {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
       body: JSON.stringify({ name }),
     })
     if (!response.ok) {
@@ -46,13 +74,10 @@ export const api = {
     }
     
     if (transferToId) {
-      options.headers = {
-        'Content-Type': 'application/json',
-      }
       options.body = JSON.stringify({ transfer_to_location_id: transferToId })
     }
     
-    const response = await fetch(`${API_BASE_URL}/locations/${id}/`, options)
+    const response = await apiRequest(`/locations/${id}/`, options)
     if (!response.ok) {
       const error = await response.json().catch(() => ({}))
       throw new Error(error.error || error.detail || 'Failed to delete location')
@@ -61,7 +86,7 @@ export const api = {
   },
 
   getInventoryByLocation: async (locationId) => {
-    const response = await fetch(`${API_BASE_URL}/inventory/?location=${locationId}`)
+    const response = await apiRequest(`/inventory/?location=${locationId}`)
     if (!response.ok) {
       throw new Error('Failed to load inventory')
     }
@@ -71,7 +96,7 @@ export const api = {
   // Items
   getItem: async (itemId) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/items/by-item-id/${itemId}/`)
+      const response = await apiRequest(`/items/by-item-id/${itemId}/`)
       if (response.status === 404) {
         return null
       }
@@ -88,11 +113,8 @@ export const api = {
   },
 
   createItem: async (itemId) => {
-    const response = await fetch(`${API_BASE_URL}/items/`, {
+    const response = await apiRequest('/items/', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
       body: JSON.stringify({ item_id: itemId }),
     })
     if (!response.ok) {
@@ -103,11 +125,8 @@ export const api = {
   },
 
   updateItemImage: async (itemId, imageUrl) => {
-    const response = await fetch(`${API_BASE_URL}/items/by-item-id/${itemId}/`, {
+    const response = await apiRequest(`/items/by-item-id/${itemId}/`, {
       method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-      },
       body: JSON.stringify({ image_url: imageUrl }),
     })
     if (!response.ok) {
@@ -119,7 +138,7 @@ export const api = {
 
   // Inventory
   getInventory: async (itemId) => {
-    const response = await fetch(`${API_BASE_URL}/inventory/by-item-id/${itemId}/`)
+    const response = await apiRequest(`/inventory/by-item-id/${itemId}/`)
     if (response.status === 404) {
       return []
     }
@@ -130,7 +149,7 @@ export const api = {
   },
 
   getAllInventory: async () => {
-    const response = await fetch(`${API_BASE_URL}/inventory/`)
+    const response = await apiRequest('/inventory/')
     if (!response.ok) {
       throw new Error('Failed to load inventory')
     }
@@ -139,11 +158,8 @@ export const api = {
 
   // Transactions
   receiveStock: async (itemId, locationId, quantity) => {
-    const response = await fetch(`${API_BASE_URL}/transactions/`, {
+    const response = await apiRequest('/transactions/', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
       body: JSON.stringify({
         item_id: itemId,
         location_id: locationId,
@@ -165,11 +181,8 @@ export const api = {
   },
 
   shipStock: async (itemId, locationId, quantity) => {
-    const response = await fetch(`${API_BASE_URL}/transactions/`, {
+    const response = await apiRequest('/transactions/', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
       body: JSON.stringify({
         item_id: itemId,
         location_id: locationId,
@@ -192,7 +205,7 @@ export const api = {
 
   // Journal
   getJournalEntries: async () => {
-    const response = await fetch(`${API_BASE_URL}/journal/`)
+    const response = await apiRequest('/journal/')
     if (!response.ok) {
       throw new Error('Failed to load journal entries')
     }
@@ -200,7 +213,7 @@ export const api = {
   },
 
   getJournalByItem: async (itemId) => {
-    const response = await fetch(`${API_BASE_URL}/journal/by_item/?item_id=${itemId}`)
+    const response = await apiRequest(`/journal/by_item/?item_id=${itemId}`)
     if (!response.ok) {
       throw new Error('Failed to load journal entries')
     }
@@ -208,7 +221,7 @@ export const api = {
   },
 
   getJournalByLocation: async (locationId) => {
-    const response = await fetch(`${API_BASE_URL}/journal/by_location/?location_id=${locationId}`)
+    const response = await apiRequest(`/journal/by_location/?location_id=${locationId}`)
     if (!response.ok) {
       throw new Error('Failed to load journal entries')
     }

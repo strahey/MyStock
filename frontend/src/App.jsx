@@ -1,8 +1,24 @@
 import { useState, useEffect } from 'react'
 import './App.css'
 import { api } from './api'
+import { useAuth } from './AuthContext'
+import Login from './Login'
 
 function App() {
+  const { isAuthenticated, loading: authLoading, user, logout } = useAuth()
+  
+  // Show login screen if not authenticated
+  if (authLoading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
+        <div>Loading...</div>
+      </div>
+    )
+  }
+  
+  if (!isAuthenticated) {
+    return <Login />
+  }
   const [step, setStep] = useState('itemId') // 'itemId', 'receive', 'ship', 'inventory', 'journal', 'fullInventory', 'locations'
   const [itemId, setItemId] = useState('')
   const [item, setItem] = useState(null)
@@ -537,7 +553,28 @@ function App() {
   return (
     <div className="app">
       <header className="app-header">
-        <h1>MyStock - LEGO Inventory Management</h1>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+          <h1>MyStock - LEGO Inventory Management</h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+            <span style={{ color: '#666', fontSize: '0.9em' }}>
+              {user?.email || user?.username}
+            </span>
+            <button 
+              onClick={logout}
+              style={{
+                padding: '8px 16px',
+                backgroundColor: '#dc3545',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '0.9em'
+              }}
+            >
+              Logout
+            </button>
+          </div>
+        </div>
         <nav className="main-nav">
           <button 
             onClick={() => {

@@ -1,8 +1,10 @@
 from django.db import models
+from django.contrib.auth.models import User
 
 
 class Location(models.Model):
-    name = models.CharField(max_length=100, unique=True)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='locations')
+    name = models.CharField(max_length=100)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -11,6 +13,7 @@ class Location(models.Model):
 
     class Meta:
         ordering = ['name']
+        unique_together = ['user', 'name']  # Location names unique per user
 
 
 class Item(models.Model):
@@ -34,6 +37,7 @@ class StockTransaction(models.Model):
         ('SHIP', 'Ship'),
     ]
 
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='transactions')
     item = models.ForeignKey(Item, on_delete=models.CASCADE, related_name='transactions')
     location = models.ForeignKey(Location, on_delete=models.CASCADE, related_name='transactions')
     transaction_type = models.CharField(max_length=10, choices=TRANSACTION_TYPES)
@@ -49,6 +53,7 @@ class StockTransaction(models.Model):
 
 
 class Inventory(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='inventory')
     item = models.ForeignKey(Item, on_delete=models.CASCADE, related_name='inventory')
     location = models.ForeignKey(Location, on_delete=models.CASCADE, related_name='inventory')
     quantity = models.IntegerField(default=0)
@@ -56,7 +61,7 @@ class Inventory(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        unique_together = ['item', 'location']
+        unique_together = ['user', 'item', 'location']  # Unique per user
         ordering = ['item', 'location']
 
     def __str__(self):
@@ -77,6 +82,9 @@ class TransactionJournal(models.Model):
         ('TRANSFER', 'Transfer'),
     ]
 
+    # User who created this transaction
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='journal_entries')
+    
     # Link to the original transaction (if applicable) - nullable for historical integrity
     transaction = models.ForeignKey(
         StockTransaction, 
