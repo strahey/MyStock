@@ -50,7 +50,13 @@ export const api = {
       body: JSON.stringify({ name }),
     })
     if (!response.ok) {
-      const error = await response.json()
+      let error
+      try {
+        error = await response.json()
+      } catch (e) {
+        // If response is not JSON (e.g., HTML error page), use status text
+        throw new Error(`Failed to create location: ${response.status} ${response.statusText}`)
+      }
       throw new Error(error.name?.[0] || error.detail || 'Failed to create location')
     }
     return response.json()
@@ -62,7 +68,13 @@ export const api = {
       body: JSON.stringify({ name }),
     })
     if (!response.ok) {
-      const error = await response.json()
+      let error
+      try {
+        error = await response.json()
+      } catch (e) {
+        // If response is not JSON (e.g., HTML error page), use status text
+        throw new Error(`Failed to update location: ${response.status} ${response.statusText}`)
+      }
       throw new Error(error.name?.[0] || error.detail || 'Failed to update location')
     }
     return response.json()
@@ -228,4 +240,3 @@ export const api = {
     return response.json()
   },
 }
-
