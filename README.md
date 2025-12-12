@@ -35,16 +35,49 @@ A full-stack web application for managing LEGO set inventory across multiple war
 
 ## Quick Start
 
-If you're setting up for the first time, follow these steps in order:
-
-1. **Clone the repository** and navigate to the project directory
-2. **Set up the backend**: Create virtual environment, install dependencies, run migrations
-3. **Set up the frontend**: Install Node.js version (if using nvm), install npm dependencies
-4. **Start the application**: Use the launch script or start both servers manually
-
-See the detailed setup instructions below.
+If you're setting up for the first time, you can now use Docker for easier setup and isolation (see [Docker-Based Local Development](#docker-based-local-development-advanced)). Manual setup instructions are still provided below.
 
 ## Local Development Setup
+
+### Option A: Docker-Based Local Development (Advanced)
+
+For an easier dev experience and better environment consistency, you can now run the project using Docker and Docker Compose. This method does not require any global Python or Node.js dependencies other than Docker itself.
+
+**1. Prerequisites:**
+- [Docker Desktop](https://www.docker.com/products/docker-desktop) installed
+
+**2. Start all services:**
+```bash
+docker-compose up --build
+```
+- This will start both the **backend** (Django dev server on port 8000) and the **frontend** (React dev server on port 5173) with live code reload supported via bind mounts.
+- You can edit files locally and changes appear immediately.
+
+**3. Application URLs:**
+- Frontend: [http://localhost:5173](http://localhost:5173)
+- Backend API: [http://localhost:8000/api/](http://localhost:8000/api/)
+
+**4. Django Management Commands:**
+To run management commands (e.g. migrations, createsuperuser):
+```bash
+docker-compose exec backend python manage.py migrate
+docker-compose exec backend python manage.py createsuperuser
+```
+
+**5. Stopping containers:**
+- Press **Ctrl+C** or run:
+```bash
+docker-compose down
+```
+
+**6. Notes:**
+- The database is stored in `db.sqlite3`, so data persists unless you delete the file.
+- For a clean state: `docker-compose down -v` (removes containers and anonymous volumes).
+- For production, see below about switching to PostgreSQL.
+
+---
+
+### Option B: Manual Setup
 
 ### 1. Clone the Repository
 
