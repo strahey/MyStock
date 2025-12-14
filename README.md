@@ -455,3 +455,26 @@ This project is for internal use.
 
 For questions or issues, please contact the development team.
 
+## Production Setup with PostgreSQL
+
+For deployment or production, use PostgreSQL instead of SQLite for better reliability and scalability. Steps below assume Docker Compose:
+
+1. Copy and edit `.env.production` or set secret env vars as needed. You must configure:
+    - POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD (for DB container)
+    - DATABASE_URL (for Django backend, e.g., postgres://user:pass@db:5432/dbname)
+2. Build and launch the full stack:
+   ```bash
+   docker compose -f docker-compose.prod.yml up --build
+   ```
+3. On first deploy or after migrations, run:
+   ```bash
+   docker compose -f docker-compose.prod.yml run --rm backend python manage.py migrate
+   ```
+   This creates or upgrades your tables in PostgreSQL.
+4. Static and media files are stored in persistent Docker volumes. Use Django storage backends or S3 for production as needed.
+5. The database data will persist via Docker volume `pgdata`.
+
+**See the DEVELOPMENT_WORKFLOW.md file for further DB/migration details and best practices.**
+
+---
+

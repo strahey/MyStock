@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - .:/app  # Mount entire project root for Django to find both backend and inventory apps
+    ports:
+      - "8000:8000"
+    environment:
+      - DJANGO_SETTINGS_MODULE=backend.settings
+    depends_on: []
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    command: npm run dev -- --host
+    working_dir: /app/frontend
+    volumes:
+      - ./frontend:/app/frontend
+      - /app/frontend/node_modules
+    ports:
+      - "5173:5173"
+    environment:
+      - NODE_ENV=development
+    depends_on:
+      - backend
+
+# SQLite DB persistence is local file, so no extra service needed.
+# For production use, consider a Dockerized PostgreSQL service.

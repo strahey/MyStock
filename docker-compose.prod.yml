@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_DB: mystock
+      POSTGRES_USER: mystock_user
+      POSTGRES_PASSWORD: mystock_pass
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - mystocknet
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      DJANGO_SETTINGS_MODULE: backend.settings_production
+      DATABASE_URL: postgres://mystock_user:mystock_pass@db:5432/mystock
+    volumes:
+      - staticfiles:/app/staticfiles
+      - media:/app/media
+    command: bash -c "python manage.py migrate && gunicorn backend.wsgi:application --bind 0.0.0.0:8000"
+    depends_on:
+      - db
+    expose:
+      - "8000"
+    networks:
+      - mystocknet
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    command: npm run build
+    depends_on:
+      - backend
+    networks:
+      - mystocknet
+    # Serve built frontend with nginx or similar for production
+
+volumes:
+  pgdata:
+  staticfiles:
+  media:
+
+networks:
+  mystocknet:
