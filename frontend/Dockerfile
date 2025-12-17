@@ -1,17 +1,13 @@
-# Dockerfile for React Frontend (Development)
-FROM node:20-alpine
-
+# Build stage
+FROM node:20-alpine AS build
 WORKDIR /app
-
-# Install dependencies
-COPY frontend/package.json frontend/package-lock.json ./
+COPY package.json package-lock.json ./
 RUN npm install
+COPY . .
+RUN npm run build
 
-# Copy the rest of the frontend source
-COPY frontend ./frontend
-
-# Expose Vite's dev port (5173)
-EXPOSE 5173
-
-# Start the dev server
-CMD ["npm", "run", "dev", "--", "--host"]
+# Serve stage (production) with Nginx
+FROM nginx:alpine
+COPY --from=build /app/dist /usr/share/nginx/html
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]
