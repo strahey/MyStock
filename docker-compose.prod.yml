@@ -18,7 +18,7 @@ services:
       context: .
       dockerfile: backend/Dockerfile
     ports:
-      - "8000:8000"
+      - "8888:8000"
     environment:
       DJANGO_SETTINGS_MODULE: backend.settings_production
       DATABASE_URL: postgres://mystock_user:mystock_pass@db:5432/mystock
@@ -28,8 +28,8 @@ services:
     command: bash -c "python manage.py migrate && gunicorn backend.wsgi:application --bind 0.0.0.0:8000"
     depends_on:
       - db
-    expose:
-      - "8000"
+    # expose:
+    #   - "8000"
     networks:
       - mystocknet
 

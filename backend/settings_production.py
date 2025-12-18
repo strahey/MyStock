@@ -205,13 +205,15 @@ SOCIALACCOUNT_EMAIL_VERIFICATION = 'none'
 
 # CORS settings
 CORS_ALLOWED_ORIGINS = [
+    "http://localhost:8080",
+    "http://127.0.0.1:8080",
     "http://localhost:3000",
     "http://127.0.0.1:3000",
     "http://localhost:5173",
     "http://127.0.0.1:5173",
 ]
 
-CORS_ALLOW_ALL_ORIGINS = False
+CORS_ALLOW_ALL_ORIGINS = True
 
 # Allow any localhost port in development
 CORS_ALLOWED_ORIGIN_REGEXES = [
