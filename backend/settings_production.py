@@ -30,7 +30,7 @@ SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-$-)7(n^_^5k#41yy_*=
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
-ALLOWED_HOSTS = ['localhost', '127.0.0.1']  # Add your real domain in production!
+ALLOWED_HOSTS = ['mystock.trahey.net','localhost', '127.0.0.1']  # Add your real domain in production!
 
 
 # Application definition
@@ -205,6 +205,7 @@ SOCIALACCOUNT_EMAIL_VERIFICATION = 'none'
 
 # CORS settings
 CORS_ALLOWED_ORIGINS = [
+    "http://mystock.trahey.net",
     "http://localhost:8080",
     "http://127.0.0.1:8080",
     "http://localhost:3000",
@@ -213,7 +214,7 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:5173",
 ]
 
-CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_ALL_ORIGINS = False
 
 # Allow any localhost port in development
 CORS_ALLOWED_ORIGIN_REGEXES = [
