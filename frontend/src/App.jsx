@@ -67,7 +67,7 @@ function App() {
       console.error('Error loading locations:', err)
       // Show helpful error message
       if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError') || err.message.includes('Cannot connect')) {
-        setError('⚠️ Cannot connect to backend server. Make sure Django is running on http://localhost:8000')
+        setError(`⚠️ Cannot connect to backend server. Make sure Django is running on ${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}`)
       } else {
         setError('Failed to load locations: ' + err.message)
       }

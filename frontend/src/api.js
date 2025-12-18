@@ -1,4 +1,4 @@
-const API_BASE_URL = 'http://localhost:8888/api'
+const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}/api`
 
 // Helper function to get auth token
 const getAuthToken = () => {
@@ -106,7 +106,7 @@ export const api = {
       return response.json()
     } catch (err) {
       if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError')) {
-        throw new Error('Cannot connect to backend server. Make sure Django is running on http://localhost:8000')
+        throw new Error(`Cannot connect to backend server. Make sure Django is running on ${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}`)
       }
       throw err
     }

@@ -48,7 +48,7 @@ For an easier dev experience and better environment consistency, you can now run
 
 **2. Start all services:**
 ```bash
-docker-compose up --build
+docker compose up --build
 ```
 - This will start both the **backend** (Django dev server on port 8000) and the **frontend** (React dev server on port 5173) with live code reload supported via bind mounts.
 - You can edit files locally and changes appear immediately.
@@ -60,20 +60,31 @@ docker-compose up --build
 **4. Django Management Commands:**
 To run management commands (e.g. migrations, createsuperuser):
 ```bash
-docker-compose exec backend python manage.py migrate
-docker-compose exec backend python manage.py createsuperuser
+docker compose exec backend python manage.py migrate
+docker compose exec backend python manage.py createsuperuser
 ```
 
 **5. Stopping containers:**
 - Press **Ctrl+C** or run:
 ```bash
-docker-compose down
+docker compose down
 ```
 
 **6. Notes:**
 - The database is stored in `db.sqlite3`, so data persists unless you delete the file.
-- For a clean state: `docker-compose down -v` (removes containers and anonymous volumes).
+- For a clean state: `docker compose down -v` (removes containers and anonymous volumes).
 - For production, see below about switching to PostgreSQL.
+
+### Frontend API Base URL (Vite)
+
+The frontend reads the backend base URL from a Vite environment variable at build time:
+- `VITE_API_BASE_URL` (example: `http://localhost:8888`)
+
+Example files are provided:
+- `frontend/env.example`
+- `frontend/env.production.example`
+
+For local dev, create your own `frontend/.env` with `VITE_API_BASE_URL=...` and restart the dev server.
 
 ---
 

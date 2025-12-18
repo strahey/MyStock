@@ -1,5 +1,7 @@
 import { createContext, useContext, useState, useEffect } from 'react'
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+
 const AuthContext = createContext(null)
 
 export const useAuth = () => {
@@ -36,7 +38,7 @@ export const AuthProvider = ({ children }) => {
   const login = async (googleToken) => {
     try {
       // Exchange Google token for JWT
-      const response = await fetch('http://localhost:8888/api/auth/login/', {
+      const response = await fetch(`${API_BASE_URL}/api/auth/login/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -81,7 +83,7 @@ export const AuthProvider = ({ children }) => {
         throw new Error('No refresh token')
       }
 
-      const response = await fetch('http://localhost:8000/api/auth/refresh/', {
+      const response = await fetch(`${API_BASE_URL}/api/auth/refresh/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
