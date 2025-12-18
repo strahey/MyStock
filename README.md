@@ -470,10 +470,11 @@ For questions or issues, please contact the development team.
 
 For deployment or production, use PostgreSQL instead of SQLite for better reliability and scalability. Steps below assume Docker Compose:
 
-1. Copy and edit `.env.production` or set secret env vars as needed. You must configure:
-    - POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD (for DB container)
-    - DATABASE_URL (for Django backend, e.g., postgres://user:pass@db:5432/dbname)
-2. Build and launch the full stack:
+1. Create a root `stack.env` (do not commit it). Start from `stack.env.example` and set:
+    - **Frontend (Vite build-time)**: `VITE_API_BASE_URL`, `VITE_GOOGLE_CLIENT_ID`
+    - **Backend (runtime)**: `DJANGO_SECRET_KEY`, `DJANGO_ALLOWED_HOSTS`, `DJANGO_CORS_ALLOWED_ORIGINS`, `DJANGO_CSRF_TRUSTED_ORIGINS`
+    - **Database**: `POSTGRES_*` and/or `DATABASE_URL`
+2. Build and launch the full stack (Compose reads `./stack.env` via `env_file`):
    ```bash
    docker compose -f docker-compose.prod.yml up --build
    ```
@@ -486,6 +487,17 @@ For deployment or production, use PostgreSQL instead of SQLite for better reliab
 5. The database data will persist via Docker volume `pgdata`.
 
 **See the DEVELOPMENT_WORKFLOW.md file for further DB/migration details and best practices.**
+
+## Portainer + Cloudflare Tunnels (prod/stage)
+
+Recommended pattern:
+- **Frontend**: `https://mystock.trahey.net`
+- **API**: `https://api.mystock.trahey.net`
+- **Portainer stack env file**: use a per-environment `stack.env` (prod/stage/dev) and point the Portainer stack to it.
+
+Important notes:
+- Vite variables (`VITE_*`) are **baked in at build time**. When you change `VITE_API_BASE_URL` (dev/stage/prod), you must **rebuild the frontend image**.
+- Django allowed hosts/CORS/CSRF are runtime config and can change without rebuilding, but you still need to restart the backend container for changes to take effect.
 
 ---
 

@@ -15,8 +15,12 @@ import os
 from dotenv import load_dotenv
 from datetime import timedelta
 
-# Load environment variables
+# Load environment variables (local dev convenience). In Docker/Portainer prefer stack.env.
 load_dotenv()
+
+
+def _split_csv(value: str) -> list[str]:
+    return [v.strip() for v in (value or "").split(",") if v.strip()]
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -29,8 +33,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-$-)7(n^_^5k#41yy_*=938znfe^5uy**7zn&)rhvi8_wl-s0s9')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
-ALLOWED_HOSTS = ['mystock.trahey.net','localhost', '127.0.0.1']  # Add your real domain in production!
+DEBUG = os.getenv("DJANGO_DEBUG", "False").lower() in ("1", "true", "yes", "on")
+
+# Comma-separated list (no scheme). Example: localhost,127.0.0.1,mystock.trahey.net,api.mystock.trahey.net
+ALLOWED_HOSTS = _split_csv(os.getenv("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1"))
 
 
 # Application definition
@@ -100,13 +106,13 @@ DATABASES = {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': os.environ.get('POSTGRES_DB', 'mystock'),
         'USER': os.environ.get('POSTGRES_USER', 'mystock_user'),
-        'PASSWORD': os.environ.get('POSTGRES_PASSWORD', 'mystock_pass'),
+        'PASSWORD': os.environ.get('POSTGRES_PASSWORD', ''),
         'HOST': os.environ.get('POSTGRES_HOST', 'db'),
         'PORT': os.environ.get('POSTGRES_PORT', '5432'),
     }
 }
 
-#For production, tell Django where to collect and serve static files:
+# For production, tell Django where to collect and serve static files:
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
@@ -145,10 +151,7 @@ USE_I18N = True
 USE_TZ = True
 
 
-# Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/5.2/howto/static-files/
-
-STATIC_URL = 'static/'
+# Static files are configured above via STATIC_URL/STATIC_ROOT.
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
@@ -203,16 +206,9 @@ ACCOUNT_EMAIL_VERIFICATION = 'none'  # Set to 'mandatory' for production
 SOCIALACCOUNT_AUTO_SIGNUP = True
 SOCIALACCOUNT_EMAIL_VERIFICATION = 'none'
 
-# CORS settings
-CORS_ALLOWED_ORIGINS = [
-    "http://mystock.trahey.net",
-    "http://localhost:8080",
-    "http://127.0.0.1:8080",
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-]
+# CORS settings (comma-separated origins including scheme)
+# Example: https://mystock.trahey.net,http://localhost:5173
+CORS_ALLOWED_ORIGINS = _split_csv(os.getenv("DJANGO_CORS_ALLOWED_ORIGINS", "http://localhost:5173"))
 
 CORS_ALLOW_ALL_ORIGINS = False
 
@@ -224,4 +220,8 @@ CORS_ALLOWED_ORIGIN_REGEXES = [
 
 # CORS settings for authentication
 CORS_ALLOW_CREDENTIALS = True
+
+# If you ever use session auth / CSRF-protected endpoints behind your tunnel, set trusted origins:
+# Example: https://mystock.trahey.net
+CSRF_TRUSTED_ORIGINS = _split_csv(os.getenv("DJANGO_CSRF_TRUSTED_ORIGINS", ""))
 
