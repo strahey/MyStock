@@ -442,6 +442,16 @@ body {
   color: #0c5460;
 }
 
+.transaction-badge.edit {
+  background-color: #fff3cd;
+  color: #856404;
+}
+
+.transaction-badge.delete {
+  background-color: #f0d0d0;
+  color: #6b1a1a;
+}
+
 .location-form-section {
   margin-bottom: 2rem;
   padding-bottom: 2rem;

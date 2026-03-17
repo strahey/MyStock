@@ -6,7 +6,8 @@ from .views import (
     ItemViewSet,
     StockTransactionViewSet,
     InventoryViewSet,
-    TransactionJournalViewSet
+    TransactionJournalViewSet,
+    UsedItemViewSet,
 )
 from .auth_views import (
     GoogleLoginView,
@@ -24,6 +25,7 @@ router.register(r'items', ItemViewSet, basename='item')
 router.register(r'transactions', StockTransactionViewSet, basename='transaction')
 router.register(r'inventory', InventoryViewSet, basename='inventory')
 router.register(r'journal', TransactionJournalViewSet, basename='journal')
+router.register(r'used-items', UsedItemViewSet, basename='used-item')
 
 urlpatterns = [
     path('', include(router.urls)),

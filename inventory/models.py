@@ -68,6 +68,35 @@ class Inventory(models.Model):
         return f"{self.item.item_id} at {self.location.name}: {self.quantity}"
 
 
+class UsedItem(models.Model):
+    """
+    A single physical second-hand unit of a LEGO set.
+    Identified as {item_id}~{suffix}, e.g. "10317~1".
+    When shipped, this record is deleted; history is preserved in TransactionJournal.
+    """
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='used_items')
+    item = models.ForeignKey(Item, on_delete=models.CASCADE, related_name='used_items')
+    location = models.ForeignKey(
+        'Location', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='used_items'
+    )
+    suffix = models.PositiveIntegerField()
+    notes = models.TextField(blank=True)
+    received_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ['user', 'item', 'suffix']
+        ordering = ['item', 'suffix']
+
+    @property
+    def used_item_id(self):
+        return f"{self.item.item_id}~{self.suffix}"
+
+    def __str__(self):
+        return self.used_item_id
+
+
 class TransactionJournal(models.Model):
     """
     Comprehensive journal/audit log of all transactions.
@@ -80,6 +109,8 @@ class TransactionJournal(models.Model):
         ('RECEIVE', 'Receive'),
         ('SHIP', 'Ship'),
         ('TRANSFER', 'Transfer'),
+        ('EDIT', 'Edit'),
+        ('DELETE', 'Delete'),
     ]
 
     # User who created this transaction
@@ -126,6 +157,10 @@ class TransactionJournal(models.Model):
     quantity_before = models.IntegerField(help_text="Quantity at location before this transaction")
     quantity_after = models.IntegerField(help_text="Quantity at location after this transaction")
     
+    # Used item fields (null for NIB transactions)
+    used_item_id_str = models.CharField(max_length=120, blank=True, help_text="Used item compound ID at time of transaction, e.g. '10317~1'")
+    used_item_notes = models.TextField(blank=True, help_text="Snapshot of used item condition notes at time of transaction")
+
     # Additional metadata
     notes = models.TextField(blank=True, help_text="Optional notes about this transaction")
     reference_number = models.CharField(max_length=100, blank=True, help_text="External reference number (PO, invoice, etc.)")

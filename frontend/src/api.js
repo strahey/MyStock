@@ -203,6 +203,61 @@ export const api = {
     return response.json()
   },
 
+  // Used Items
+  getAllUsedItems: async () => {
+    const response = await apiRequest('/used-items/')
+    if (!response.ok) throw new Error('Failed to load used items')
+    return response.json()
+  },
+
+  getUsedItemsByItemId: async (itemId) => {
+    const response = await apiRequest(`/used-items/by-item-id/${itemId}/`)
+    if (!response.ok) throw new Error('Failed to load used items')
+    return response.json()
+  },
+
+  receiveUsedItem: async (itemId, locationId, notes) => {
+    const response = await apiRequest('/used-items/', {
+      method: 'POST',
+      body: JSON.stringify({ item_id: itemId, location_id: locationId, notes }),
+    })
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}))
+      throw new Error(error.error || 'Failed to receive used item')
+    }
+    return response.json()
+  },
+
+  shipUsedItem: async (id) => {
+    const response = await apiRequest(`/used-items/${id}/ship/`, { method: 'POST' })
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}))
+      throw new Error(error.error || 'Failed to ship used item')
+    }
+    return response.json()
+  },
+
+  updateUsedItem: async (id, fields) => {
+    const response = await apiRequest(`/used-items/${id}/`, {
+      method: 'PATCH',
+      body: JSON.stringify(fields),
+    })
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}))
+      throw new Error(error.error || 'Failed to update used item')
+    }
+    return response.json()
+  },
+
+  deleteUsedItem: async (id) => {
+    const response = await apiRequest(`/used-items/${id}/`, { method: 'DELETE' })
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}))
+      throw new Error(error.error || 'Failed to delete used item')
+    }
+    return true
+  },
+
   // Admin
   getUsers: async () => {
     const response = await apiRequest('/auth/users/')

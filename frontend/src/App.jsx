@@ -4,6 +4,7 @@ import { api } from './api'
 import { useAuth } from './AuthContext'
 import Login from './Login'
 import ImpersonatePicker from './ImpersonatePicker'
+import UsedItemsTable from './UsedItemsTable'
 
 function App() {
   const { isAuthenticated, loading: authLoading, user, logout, isImpersonating, adminUser, stopImpersonating } = useAuth()
@@ -21,7 +22,7 @@ function App() {
     return <Login />
   }
   const [showImpersonatePicker, setShowImpersonatePicker] = useState(false)
-  const [step, setStep] = useState('itemId') // 'itemId', 'receive', 'ship', 'inventory', 'journal', 'fullInventory', 'locations'
+  const [step, setStep] = useState('itemId') // 'itemId', 'conditionSelect', 'receive', 'usedReceive', 'ship', 'inventory', 'journal', 'fullInventory', 'locations'
   const [itemId, setItemId] = useState('')
   const [item, setItem] = useState(null)
   const [inventory, setInventory] = useState([])
@@ -32,6 +33,8 @@ function App() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [showOnlyInStock, setShowOnlyInStock] = useState(false)
+  const [usedItems, setUsedItems] = useState([])
+  const [usedItemNotes, setUsedItemNotes] = useState('')
   
   // Transaction form state
   const [quantity, setQuantity] = useState('')
@@ -121,6 +124,39 @@ function App() {
     }
   }
 
+  const loadUsedItems = async (itemId) => {
+    try {
+      const data = await api.getUsedItemsByItemId(itemId)
+      setUsedItems(data)
+    } catch {
+      setUsedItems([])
+    }
+  }
+
+  const handleUsedReceive = async (e) => {
+    e.preventDefault()
+    setError('')
+    setLoading(true)
+    if (!selectedLocationId) {
+      setError('Please select a location')
+      setLoading(false)
+      return
+    }
+    try {
+      const result = await api.receiveUsedItem(itemId, parseInt(selectedLocationId), usedItemNotes)
+      setSuccess(`Received used unit ${result.used_item_id}`)
+      setUsedItemNotes('')
+      setSelectedLocationId('')
+      await loadUsedItems(itemId)
+      setStep('inventory')
+      setTimeout(() => setSuccess(''), 4000)
+    } catch (err) {
+      setError(err.message || 'Failed to receive used item')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const handleItemIdSubmit = async (e) => {
     e.preventDefault()
     setError('')
@@ -137,21 +173,15 @@ function App() {
       }
       
       setItem(itemData)
-      
-      // Check inventory (pass itemData so it's available in loadInventory)
-      const inventoryData = await loadInventory(itemId, itemData)
-      
-      // Check if all locations have 0 quantity
-      const hasAnyStock = inventoryData.some(inv => inv.quantity > 0)
-      
-      if (!hasAnyStock) {
-        // No inventory at any location - show receive form
-        setStep('receive')
-        setTransactionType('RECEIVE')
-      } else {
-        // Has inventory at some location - show inventory table
-        setStep('inventory')
-      }
+
+      // Load both NIB inventory and used items in parallel
+      await Promise.all([
+        loadInventory(itemId, itemData),
+        loadUsedItems(itemId),
+      ])
+
+      // Always show condition picker — user explicitly chooses NIB or second hand
+      setStep('conditionSelect')
     } catch (err) {
       setError(err.message || 'Failed to process item ID')
     } finally {
@@ -227,6 +257,8 @@ function App() {
     setItemId('')
     setItem(null)
     setInventory([])
+    setUsedItems([])
+    setUsedItemNotes('')
     setQuantity('')
     setSelectedLocationId('')
     setSelectedLocationName('')
@@ -252,21 +284,13 @@ function App() {
       }
       
       setItem(itemData)
-      
-      // Check inventory
-      const inventoryData = await loadInventory(clickedItemId, itemData)
-      
-      // Check if all locations have 0 quantity
-      const hasAnyStock = inventoryData.some(inv => inv.quantity > 0)
-      
-      if (!hasAnyStock) {
-        // No inventory at any location - show receive form
-        setStep('receive')
-        setTransactionType('RECEIVE')
-      } else {
-        // Has inventory at some location - show inventory table
-        setStep('inventory')
-      }
+
+      await Promise.all([
+        loadInventory(clickedItemId, itemData),
+        loadUsedItems(clickedItemId),
+      ])
+
+      setStep('inventory')
     } catch (err) {
       setError(err.message || 'Failed to process item ID')
     } finally {
@@ -398,8 +422,12 @@ function App() {
     setLoading(true)
     setError('')
     try {
-      const data = await api.getAllInventory()
-      setFullInventory(data)
+      const [nibData, usedData] = await Promise.all([
+        api.getAllInventory(),
+        api.getAllUsedItems(),
+      ])
+      setFullInventory(nibData)
+      setUsedItems(usedData)
     } catch (err) {
       setError(err.message || 'Failed to load full inventory')
     } finally {
@@ -636,7 +664,7 @@ function App() {
               setStep('itemId')
               handleReset()
             }}
-            className={`nav-btn ${step === 'itemId' || step === 'receive' || step === 'ship' || step === 'inventory' ? 'active' : ''}`}
+            className={`nav-btn ${['itemId', 'conditionSelect', 'receive', 'usedReceive', 'ship', 'inventory'].includes(step) ? 'active' : ''}`}
           >
             Item Lookup
           </button>
@@ -681,6 +709,110 @@ function App() {
               <button type="submit" disabled={loading} className="btn-primary">
                 {loading ? 'Processing...' : 'Continue'}
               </button>
+            </form>
+          </div>
+        )}
+
+        {step === 'conditionSelect' && item && (
+          <div className="card">
+            <div className="item-header">
+              {item.image_url && (
+                <div className="product-image-container">
+                  <img src={item.image_url} alt={item.name || item.item_id} className="product-image" />
+                </div>
+              )}
+              <div className="item-header-text">
+                <h2>{item.item_id}</h2>
+                {item.name && <p className="item-name">{item.name}</p>}
+              </div>
+            </div>
+            <h3 style={{ marginTop: '16px', marginBottom: '12px' }}>How are you receiving this item?</h3>
+            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+              <button
+                className="btn-primary"
+                onClick={() => {
+                  setTransactionType('RECEIVE')
+                  setStep('receive')
+                }}
+              >
+                New In Box
+              </button>
+              <button
+                className="btn-secondary"
+                onClick={() => {
+                  setSelectedLocationId('')
+                  setUsedItemNotes('')
+                  setStep('usedReceive')
+                }}
+              >
+                Second Hand
+              </button>
+              {(inventory.some(inv => inv.quantity > 0) || usedItems.length > 0) && (
+                <button className="btn-link" onClick={() => setStep('inventory')}>
+                  View Current Inventory
+                </button>
+              )}
+            </div>
+            <div className="card-actions" style={{ marginTop: '16px' }}>
+              <button onClick={handleReset} className="btn-link">Enter Different Item ID</button>
+            </div>
+          </div>
+        )}
+
+        {step === 'usedReceive' && item && (
+          <div className="card">
+            <div className="item-header">
+              {item.image_url && (
+                <div className="product-image-container">
+                  <img src={item.image_url} alt={item.name || item.item_id} className="product-image" />
+                </div>
+              )}
+              <div className="item-header-text">
+                <h2>Receive Second Hand - {item.item_id}</h2>
+                {item.name && <p className="item-name">{item.name}</p>}
+              </div>
+            </div>
+            <form onSubmit={handleUsedReceive} style={{ marginTop: '16px' }}>
+              <div className="form-group">
+                <label htmlFor="usedNotes">Condition Notes:</label>
+                <textarea
+                  id="usedNotes"
+                  value={usedItemNotes}
+                  onChange={(e) => setUsedItemNotes(e.target.value)}
+                  placeholder="Describe the condition — missing pieces, box damage, stickers applied, etc."
+                  rows={4}
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '8px', borderRadius: '4px', border: '1px solid #ccc', fontSize: '0.95em' }}
+                  disabled={loading}
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="usedLocation">Location:</label>
+                <select
+                  id="usedLocation"
+                  value={selectedLocationId}
+                  onChange={(e) => setSelectedLocationId(e.target.value)}
+                  required
+                  disabled={loading}
+                >
+                  <option value="">Select a location</option>
+                  {locations.map(loc => (
+                    <option key={loc.id} value={loc.id}>{loc.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-actions">
+                <button type="submit" disabled={loading} className="btn-primary">
+                  {loading ? 'Saving...' : 'Add to Inventory'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStep('conditionSelect')}
+                  className="btn-secondary"
+                  disabled={loading}
+                >
+                  Back
+                </button>
+              </div>
             </form>
           </div>
         )}
@@ -882,6 +1014,27 @@ function App() {
               </div>
             )}
             
+            <div style={{ marginTop: '24px' }}>
+              <h3 style={{ marginBottom: '8px' }}>
+                Used Units{usedItems.length > 0 ? ` (${usedItems.length})` : ''}
+                <button
+                  className="btn-link"
+                  style={{ marginLeft: '12px', fontSize: '0.85em' }}
+                  onClick={() => {
+                    setSelectedLocationId('')
+                    setUsedItemNotes('')
+                    setStep('usedReceive')
+                  }}
+                >
+                  + Receive Second Hand
+                </button>
+              </h3>
+              <UsedItemsTable
+                usedItems={usedItems}
+                onRefresh={() => loadUsedItems(itemId)}
+              />
+            </div>
+
             <div className="card-actions">
               <button onClick={handleReset} className="btn-link">
                 Enter Different Item ID
@@ -982,13 +1135,14 @@ function App() {
                       <th>Quantity</th>
                       <th>Before</th>
                       <th>After</th>
+                      <th>Notes</th>
                     </tr>
                   </thead>
                   <tbody>
                     {journalEntries.map(entry => (
                       <tr key={entry.id}>
                         <td className="date-cell">{formatDate(entry.created_at)}</td>
-                        <td>{entry.item_id || (entry.item?.item_id) || '-'}</td>
+                        <td>{entry.used_item_id_str || entry.item_id || entry.item?.item_id || '-'}</td>
                         <td>{entry.item_name || (entry.item?.name) || '-'}</td>
                         <td>{entry.location_name || (entry.location?.name) || '-'}</td>
                         <td>
@@ -1001,6 +1155,9 @@ function App() {
                         </td>
                         <td className="quantity-cell">{entry.quantity_before}</td>
                         <td className="quantity-cell">{entry.quantity_after}</td>
+                        <td style={{ fontSize: '0.85em', maxWidth: '220px', whiteSpace: 'pre-wrap' }}>
+                          {entry.notes || ''}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -1033,40 +1190,66 @@ function App() {
                 <p>No inventory found.</p>
               </div>
             ) : (() => {
-              // Transform inventory data: group by item_id
+              // Build used item counts per item_id and per location
+              const usedCountByItem = {}      // item_id -> total used count
+              const usedCountByItemLoc = {}   // item_id -> { locationName -> count }
+              usedItems.forEach(u => {
+                const id = u.item.item_id
+                usedCountByItem[id] = (usedCountByItem[id] || 0) + 1
+                if (!usedCountByItemLoc[id]) usedCountByItemLoc[id] = {}
+                const locName = u.location?.name
+                if (locName) {
+                  usedCountByItemLoc[id][locName] = (usedCountByItemLoc[id][locName] || 0) + 1
+                }
+              })
+
+              // Group NIB inventory by item_id
               const inventoryByItem = {}
-              
               fullInventory.forEach(inv => {
                 const itemId = inv.item.item_id
                 if (!inventoryByItem[itemId]) {
                   inventoryByItem[itemId] = {
                     item: inv.item,
                     locations: {},
-                    totalQuantity: 0,
+                    nibTotal: 0,
                     lastUpdated: inv.updated_at
                   }
                 }
                 inventoryByItem[itemId].locations[inv.location.name] = inv.quantity
-                inventoryByItem[itemId].totalQuantity += inv.quantity
-                // Keep the most recent updated_at
+                inventoryByItem[itemId].nibTotal += inv.quantity
                 if (new Date(inv.updated_at) > new Date(inventoryByItem[itemId].lastUpdated)) {
                   inventoryByItem[itemId].lastUpdated = inv.updated_at
                 }
               })
-              
-              // Convert to array and filter
-              let items = Object.values(inventoryByItem)
-              
+
+              // Add any items that only exist as used (no NIB inventory)
+              usedItems.forEach(u => {
+                const itemId = u.item.item_id
+                if (!inventoryByItem[itemId]) {
+                  inventoryByItem[itemId] = {
+                    item: u.item,
+                    locations: {},
+                    nibTotal: 0,
+                    lastUpdated: u.received_at,
+                  }
+                }
+              })
+
+              // Convert to array, compute totals, filter
+              let items = Object.values(inventoryByItem).map(row => ({
+                ...row,
+                usedCount: usedCountByItem[row.item.item_id] || 0,
+                totalQuantity: row.nibTotal + (usedCountByItem[row.item.item_id] || 0),
+              }))
+
               if (showOnlyInStock) {
                 items = items.filter(item => item.totalQuantity > 0)
               }
-              
-              // Sort by item_id
+
               items.sort((a, b) => a.item.item_id.localeCompare(b.item.item_id))
-              
-              // Get all unique locations (sorted)
+
               const allLocations = [...new Set(locations.map(loc => loc.name))].sort()
-              
+
               return (
                 <div className="full-inventory-table-container">
                   <table className="full-inventory-table">
@@ -1095,8 +1278,8 @@ function App() {
                           </td>
                           <td className="item-name-cell">
                             {itemData.item.image_url && (
-                              <img 
-                                src={itemData.item.image_url} 
+                              <img
+                                src={itemData.item.image_url}
                                 alt={itemData.item.name || itemData.item.item_id}
                                 className="item-thumbnail"
                               />
@@ -1104,13 +1287,15 @@ function App() {
                             <span>{itemData.item.name || '-'}</span>
                           </td>
                           {allLocations.map(locName => {
-                            const qty = itemData.locations[locName] || 0
+                            const nibQty = itemData.locations[locName] || 0
+                            const usedQty = (usedCountByItemLoc[itemData.item.item_id]?.[locName]) || 0
+                            const total = nibQty + usedQty
                             return (
-                              <td 
+                              <td
                                 key={locName}
-                                className={`quantity-cell ${qty === 0 ? 'zero-quantity' : ''}`}
+                                className={`quantity-cell ${total === 0 ? 'zero-quantity' : ''}`}
                               >
-                                {qty}
+                                {total}
                               </td>
                             )
                           })}

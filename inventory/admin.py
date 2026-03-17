@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Location, Item, StockTransaction, Inventory, TransactionJournal
+from .models import Location, Item, StockTransaction, Inventory, TransactionJournal, UsedItem
 
 
 @admin.register(Location)
@@ -27,6 +27,18 @@ class InventoryAdmin(admin.ModelAdmin):
     list_display = ['item', 'location', 'quantity', 'updated_at']
     list_filter = ['location']
     search_fields = ['item__item_id', 'location__name']
+
+
+@admin.register(UsedItem)
+class UsedItemAdmin(admin.ModelAdmin):
+    list_display = ['used_item_id', 'item', 'location', 'received_at', 'updated_at']
+    search_fields = ['item__item_id', 'notes']
+    list_filter = ['location', 'received_at']
+    readonly_fields = ['received_at', 'updated_at']
+
+    def used_item_id(self, obj):
+        return obj.used_item_id
+    used_item_id.short_description = 'Unit ID'
 
 
 @admin.register(TransactionJournal)

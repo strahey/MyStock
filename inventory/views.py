@@ -2,13 +2,17 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
-from .models import Item, Location, StockTransaction, Inventory, TransactionJournal
+from django.db import transaction as db_transaction
+from django.db.models import Max
+from django.db import IntegrityError
+from .models import Item, Location, StockTransaction, Inventory, TransactionJournal, UsedItem
 from .serializers import (
     ItemSerializer,
     LocationSerializer,
     StockTransactionSerializer,
     InventorySerializer,
-    TransactionJournalSerializer
+    TransactionJournalSerializer,
+    UsedItemSerializer,
 )
 from .scraper import scrape_lego_product_info
 
@@ -31,16 +35,21 @@ class LocationViewSet(viewsets.ModelViewSet):
         """
         location = self.get_object()
         
-        # Check if location has any inventory (user-specific)
+        # Check if location has any NIB inventory or used items
         has_inventory = Inventory.objects.filter(
             user=request.user,
             location=location
         ).exclude(quantity=0).exists()
+
+        has_used_items = UsedItem.objects.filter(
+            user=request.user,
+            location=location
+        ).exists()
         
         # Get transfer_to_location_id if provided
         transfer_to_location_id = request.data.get('transfer_to_location_id')
         
-        if has_inventory:
+        if has_inventory or has_used_items:
             if transfer_to_location_id:
                 # Transfer inventory to another location
                 try:
@@ -54,7 +63,13 @@ class LocationViewSet(viewsets.ModelViewSet):
                             status=status.HTTP_400_BAD_REQUEST
                         )
                     
-                    # Transfer all inventory (user-specific)
+                    # Transfer used items to new location
+                    UsedItem.objects.filter(
+                        user=request.user,
+                        location=location
+                    ).update(location=transfer_to_location)
+
+                    # Transfer all NIB inventory (user-specific)
                     inventories_to_transfer = Inventory.objects.filter(
                         user=request.user,
                         location=location
@@ -118,23 +133,31 @@ class LocationViewSet(viewsets.ModelViewSet):
                         status=status.HTTP_404_NOT_FOUND
                     )
             else:
-                # No transfer location specified, prevent deletion if there's inventory (user-specific)
+                # No transfer location specified — block deletion
                 inventory_items = Inventory.objects.filter(
                     user=request.user,
                     location=location
                 ).exclude(quantity=0)
+                used_count = UsedItem.objects.filter(user=request.user, location=location).count()
                 items_list = [f"{inv.item.item_id} ({inv.quantity})" for inv in inventory_items[:5]]
                 items_text = ', '.join(items_list)
                 if inventory_items.count() > 5:
                     items_text += f' and {inventory_items.count() - 5} more...'
-                
+
+                msg_parts = []
+                if inventory_items.count():
+                    msg_parts.append(f'{inventory_items.count()} NIB item(s) with stock')
+                if used_count:
+                    msg_parts.append(f'{used_count} used unit(s)')
+
                 return Response(
                     {
                         'error': f'Cannot delete location "{location.name}" because it has inventory in stock.',
                         'has_inventory': True,
                         'inventory_count': inventory_items.count(),
+                        'used_item_count': used_count,
                         'items': items_list,
-                        'message': f'Location has {inventory_items.count()} item(s) with stock: {items_text}. Please transfer inventory to another location or remove all stock first.'
+                        'message': f'Location has {" and ".join(msg_parts)}: {items_text}. Please transfer inventory to another location first.'
                     },
                     status=status.HTTP_400_BAD_REQUEST
                 )
@@ -407,6 +430,173 @@ class TransactionJournalViewSet(viewsets.ReadOnlyModelViewSet):
                 {'error': 'location_id or location_name parameter is required'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
+
         serializer = self.get_serializer(journal_entries, many=True)
         return Response(serializer.data)
+
+
+class UsedItemViewSet(viewsets.ModelViewSet):
+    serializer_class = UsedItemSerializer
+    http_method_names = ['get', 'post', 'patch', 'delete', 'head', 'options']
+
+    def get_queryset(self):
+        qs = UsedItem.objects.filter(user=self.request.user).select_related('item', 'location')
+        item_id = self.request.query_params.get('item_id')
+        if item_id:
+            qs = qs.filter(item__item_id=item_id)
+        return qs
+
+    def create(self, request, *args, **kwargs):
+        item_id = request.data.get('item_id', '').strip()
+        location_id = request.data.get('location_id')
+        notes = request.data.get('notes', '')
+
+        if not item_id:
+            return Response({'error': 'item_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+        if '~' in item_id:
+            return Response({'error': 'item_id must be a base LEGO set ID (no ~ character)'}, status=status.HTTP_400_BAD_REQUEST)
+        if not location_id:
+            return Response({'error': 'location_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Get or create Item, trigger scraper as normal
+        item, created = Item.objects.get_or_create(item_id=item_id)
+        if created or not item.name or not item.image_url:
+            product_info = scrape_lego_product_info(item_id)
+            if product_info:
+                if product_info.get('name') and not item.name:
+                    item.name = product_info['name']
+                if product_info.get('image_url') and not item.image_url:
+                    item.image_url = product_info['image_url']
+                item.save()
+
+        location = get_object_or_404(Location, id=location_id, user=request.user)
+
+        # Auto-assign suffix atomically
+        try:
+            with db_transaction.atomic():
+                max_suffix = UsedItem.objects.filter(
+                    user=request.user, item=item
+                ).aggregate(Max('suffix'))['suffix__max'] or 0
+                used_item = UsedItem.objects.create(
+                    user=request.user,
+                    item=item,
+                    location=location,
+                    suffix=max_suffix + 1,
+                    notes=notes,
+                )
+        except IntegrityError:
+            return Response(
+                {'error': 'Failed to assign unit ID, please try again.'},
+                status=status.HTTP_409_CONFLICT
+            )
+
+        # Journal entry: snapshot notes at receive time
+        journal_notes = f"{used_item.used_item_id}: {notes}" if notes else used_item.used_item_id
+        TransactionJournal.objects.create(
+            user=request.user,
+            item=item,
+            location=location,
+            item_id_str=item.item_id,
+            item_name_str=item.name or '',
+            location_name_str=location.name,
+            transaction_type='RECEIVE',
+            quantity=1,
+            quantity_before=0,
+            quantity_after=1,
+            used_item_id_str=used_item.used_item_id,
+            used_item_notes=notes,
+            notes=journal_notes,
+        )
+
+        return Response(UsedItemSerializer(used_item).data, status=status.HTTP_201_CREATED)
+
+    def partial_update(self, request, *args, **kwargs):
+        used_item = self.get_object()
+        notes_changed = 'notes' in request.data and request.data['notes'] != used_item.notes
+        old_notes = used_item.notes
+
+        if 'notes' in request.data:
+            used_item.notes = request.data['notes']
+        if 'location_id' in request.data:
+            location = get_object_or_404(Location, id=request.data['location_id'], user=request.user)
+            used_item.location = location
+        used_item.save()
+
+        if notes_changed:
+            new_notes = used_item.notes
+            journal_notes = f"{used_item.used_item_id}: {new_notes}" if new_notes else used_item.used_item_id
+            if old_notes:
+                journal_notes += f" (was: {old_notes})"
+            TransactionJournal.objects.create(
+                user=request.user,
+                item=used_item.item,
+                location=used_item.location,
+                item_id_str=used_item.item.item_id,
+                item_name_str=used_item.item.name or '',
+                location_name_str=used_item.location.name if used_item.location else '',
+                transaction_type='EDIT',
+                quantity=1,
+                quantity_before=1,
+                quantity_after=1,
+                used_item_id_str=used_item.used_item_id,
+                used_item_notes=new_notes,
+                notes=journal_notes,
+            )
+
+        return Response(UsedItemSerializer(used_item).data)
+
+    def destroy(self, request, *args, **kwargs):
+        used_item = self.get_object()
+        location = used_item.location
+        journal_notes = f"{used_item.used_item_id}: {used_item.notes}" if used_item.notes else used_item.used_item_id
+        TransactionJournal.objects.create(
+            user=request.user,
+            item=used_item.item,
+            location=location,
+            item_id_str=used_item.item.item_id,
+            item_name_str=used_item.item.name or '',
+            location_name_str=location.name if location else '',
+            transaction_type='DELETE',
+            quantity=1,
+            quantity_before=1,
+            quantity_after=0,
+            used_item_id_str=used_item.used_item_id,
+            used_item_notes=used_item.notes,
+            notes=journal_notes,
+        )
+        used_item.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=['post'])
+    def ship(self, request, pk=None):
+        used_item = self.get_object()
+        location = used_item.location
+
+        # Snapshot notes before deletion
+        journal_notes = f"{used_item.used_item_id}: {used_item.notes}" if used_item.notes else used_item.used_item_id
+        TransactionJournal.objects.create(
+            user=request.user,
+            item=used_item.item,
+            location=location,
+            item_id_str=used_item.item.item_id,
+            item_name_str=used_item.item.name or '',
+            location_name_str=location.name if location else '',
+            transaction_type='SHIP',
+            quantity=1,
+            quantity_before=1,
+            quantity_after=0,
+            used_item_id_str=used_item.used_item_id,
+            used_item_notes=used_item.notes,
+            notes=journal_notes,
+        )
+
+        shipped_id = used_item.used_item_id
+        used_item.delete()
+        return Response({'shipped': shipped_id})
+
+    @action(detail=False, methods=['get'], url_path='by-item-id/(?P<item_id>[^/.]+)')
+    def by_item_id(self, request, item_id=None):
+        qs = UsedItem.objects.filter(
+            user=request.user, item__item_id=item_id
+        ).select_related('item', 'location')
+        return Response(UsedItemSerializer(qs, many=True).data)
