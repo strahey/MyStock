@@ -76,6 +76,25 @@ export const AuthProvider = ({ children }) => {
     setUser(null)
   }
 
+  const devLogin = async (email) => {
+    const response = await fetch(`${API_BASE_URL}/api/auth/dev-login/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    })
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error || 'Dev login failed')
+    }
+    const data = await response.json()
+    localStorage.setItem('authToken', data.access)
+    localStorage.setItem('authUser', JSON.stringify(data.user))
+    localStorage.setItem('refreshToken', data.refresh)
+    setToken(data.access)
+    setUser(data.user)
+    return data
+  }
+
   const refreshToken = async () => {
     try {
       const refresh = localStorage.getItem('refreshToken')
@@ -112,6 +131,7 @@ export const AuthProvider = ({ children }) => {
     token,
     loading,
     login,
+    devLogin,
     logout,
     refreshToken,
     isAuthenticated: !!token && !!user,

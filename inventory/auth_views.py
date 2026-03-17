@@ -258,6 +258,53 @@ class GoogleTokenLoginView(APIView):
             )
 
 
+class DevLoginView(APIView):
+    """
+    Development-only login endpoint. Bypasses Google OAuth.
+    Only available when DEBUG=True. DO NOT expose in production.
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        from django.conf import settings
+        if not settings.DEBUG:
+            return Response(
+                {'error': 'Not available in production'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        email = request.data.get('email', '').strip()
+        if not email or '@' not in email:
+            return Response(
+                {'error': 'Valid email required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            username = email.split('@')[0]
+            base_username = username
+            counter = 1
+            while User.objects.filter(username=username).exists():
+                username = f"{base_username}{counter}"
+                counter += 1
+            user = User.objects.create_user(username=username, email=email)
+
+        refresh = RefreshToken.for_user(user)
+        return Response({
+            'access': str(refresh.access_token),
+            'refresh': str(refresh),
+            'user': {
+                'id': user.id,
+                'email': user.email,
+                'first_name': user.first_name,
+                'last_name': user.last_name,
+                'username': user.username,
+            }
+        })
+
+
 class UserProfileView(APIView):
     """
     Get current user profile.
