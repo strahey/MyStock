@@ -16,64 +16,56 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null)
   const [token, setToken] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [isImpersonating, setIsImpersonating] = useState(false)
+  const [adminUser, setAdminUser] = useState(null)
 
   // Load token from localStorage on mount
   useEffect(() => {
     const storedToken = localStorage.getItem('authToken')
     const storedUser = localStorage.getItem('authUser')
-    
+    const storedImpersonating = localStorage.getItem('isImpersonating') === 'true'
+    const storedAdminUser = localStorage.getItem('adminUser')
+
     if (storedToken && storedUser) {
       setToken(storedToken)
       try {
         setUser(JSON.parse(storedUser))
       } catch (e) {
-        console.error('Failed to parse stored user:', e)
         localStorage.removeItem('authToken')
         localStorage.removeItem('authUser')
       }
     }
+
+    if (storedImpersonating && storedAdminUser) {
+      setIsImpersonating(true)
+      try {
+        setAdminUser(JSON.parse(storedAdminUser))
+      } catch (e) {
+        localStorage.removeItem('isImpersonating')
+        localStorage.removeItem('adminUser')
+        localStorage.removeItem('adminToken')
+        localStorage.removeItem('adminRefreshToken')
+      }
+    }
+
     setLoading(false)
   }, [])
 
   const login = async (googleToken) => {
-    try {
-      // Exchange Google token for JWT
-      const response = await fetch(`${API_BASE_URL}/api/auth/login/`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ id_token: googleToken }),
-      })
+    const response = await fetch(`${API_BASE_URL}/api/auth/login/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id_token: googleToken }),
+    })
 
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Login failed')
-      }
-
-      const data = await response.json()
-      
-      // Store tokens and user info
-      localStorage.setItem('authToken', data.access)
-      localStorage.setItem('authUser', JSON.stringify(data.user))
-      localStorage.setItem('refreshToken', data.refresh)
-      
-      setToken(data.access)
-      setUser(data.user)
-      
-      return data
-    } catch (error) {
-      console.error('Login error:', error)
-      throw error
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error || 'Login failed')
     }
-  }
 
-  const logout = () => {
-    localStorage.removeItem('authToken')
-    localStorage.removeItem('authUser')
-    localStorage.removeItem('refreshToken')
-    setToken(null)
-    setUser(null)
+    const data = await response.json()
+    _applyAuth(data)
+    return data
   }
 
   const devLogin = async (email) => {
@@ -87,12 +79,83 @@ export const AuthProvider = ({ children }) => {
       throw new Error(error.error || 'Dev login failed')
     }
     const data = await response.json()
+    _applyAuth(data)
+    return data
+  }
+
+  // Store tokens and user info into state + localStorage
+  const _applyAuth = (data) => {
     localStorage.setItem('authToken', data.access)
     localStorage.setItem('authUser', JSON.stringify(data.user))
     localStorage.setItem('refreshToken', data.refresh)
     setToken(data.access)
     setUser(data.user)
-    return data
+  }
+
+  const impersonate = async (targetUserId) => {
+    const currentToken = localStorage.getItem('authToken')
+    const currentUser = localStorage.getItem('authUser')
+    const currentRefresh = localStorage.getItem('refreshToken')
+
+    const response = await fetch(`${API_BASE_URL}/api/auth/impersonate/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${currentToken}`,
+      },
+      body: JSON.stringify({ user_id: targetUserId }),
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error || 'Impersonation failed')
+    }
+
+    const data = await response.json()
+
+    // Save admin credentials so we can restore them
+    localStorage.setItem('adminToken', currentToken)
+    localStorage.setItem('adminUser', currentUser)
+    localStorage.setItem('adminRefreshToken', currentRefresh)
+    localStorage.setItem('isImpersonating', 'true')
+
+    _applyAuth(data)
+    setIsImpersonating(true)
+    setAdminUser(JSON.parse(currentUser))
+  }
+
+  const stopImpersonating = () => {
+    const savedToken = localStorage.getItem('adminToken')
+    const savedUser = localStorage.getItem('adminUser')
+    const savedRefresh = localStorage.getItem('adminRefreshToken')
+
+    localStorage.setItem('authToken', savedToken)
+    localStorage.setItem('authUser', savedUser)
+    localStorage.setItem('refreshToken', savedRefresh)
+
+    localStorage.removeItem('adminToken')
+    localStorage.removeItem('adminUser')
+    localStorage.removeItem('adminRefreshToken')
+    localStorage.removeItem('isImpersonating')
+
+    setToken(savedToken)
+    setUser(JSON.parse(savedUser))
+    setIsImpersonating(false)
+    setAdminUser(null)
+  }
+
+  const logout = () => {
+    localStorage.removeItem('authToken')
+    localStorage.removeItem('authUser')
+    localStorage.removeItem('refreshToken')
+    localStorage.removeItem('adminToken')
+    localStorage.removeItem('adminUser')
+    localStorage.removeItem('adminRefreshToken')
+    localStorage.removeItem('isImpersonating')
+    setToken(null)
+    setUser(null)
+    setIsImpersonating(false)
+    setAdminUser(null)
   }
 
   const refreshToken = async () => {
@@ -104,9 +167,7 @@ export const AuthProvider = ({ children }) => {
 
       const response = await fetch(`${API_BASE_URL}/api/auth/refresh/`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refresh }),
       })
 
@@ -117,7 +178,7 @@ export const AuthProvider = ({ children }) => {
       const data = await response.json()
       localStorage.setItem('authToken', data.access)
       setToken(data.access)
-      
+
       return data.access
     } catch (error) {
       console.error('Token refresh error:', error)
@@ -130,8 +191,12 @@ export const AuthProvider = ({ children }) => {
     user,
     token,
     loading,
+    isImpersonating,
+    adminUser,
     login,
     devLogin,
+    impersonate,
+    stopImpersonating,
     logout,
     refreshToken,
     isAuthenticated: !!token && !!user,
@@ -139,4 +204,3 @@ export const AuthProvider = ({ children }) => {
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
-

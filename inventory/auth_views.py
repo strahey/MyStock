@@ -301,8 +301,88 @@ class DevLoginView(APIView):
                 'first_name': user.first_name,
                 'last_name': user.last_name,
                 'username': user.username,
+                'is_staff': user.is_staff,
             }
         })
+
+
+class ImpersonateView(APIView):
+    """
+    Admin-only: issue a JWT scoped to another user.
+    The original admin token is not modified; the frontend stores it separately.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        if not request.user.is_staff:
+            return Response(
+                {'error': 'Admin access required'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        target_id = request.data.get('user_id')
+        if not target_id:
+            return Response(
+                {'error': 'user_id required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            target = User.objects.get(pk=target_id)
+        except User.DoesNotExist:
+            return Response(
+                {'error': 'User not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        if target.pk == request.user.pk:
+            return Response(
+                {'error': 'Cannot impersonate yourself'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        refresh = RefreshToken.for_user(target)
+        # Embed impersonated_by claim for audit purposes
+        refresh['impersonated_by'] = request.user.id
+
+        return Response({
+            'access': str(refresh.access_token),
+            'refresh': str(refresh),
+            'user': {
+                'id': target.id,
+                'email': target.email,
+                'first_name': target.first_name,
+                'last_name': target.last_name,
+                'username': target.username,
+                'is_staff': target.is_staff,
+            }
+        })
+
+
+class UserListView(APIView):
+    """
+    Admin-only: list all users for the impersonation picker.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if not request.user.is_staff:
+            return Response(
+                {'error': 'Admin access required'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        users = User.objects.exclude(pk=request.user.pk).order_by('email')
+        return Response([
+            {
+                'id': u.id,
+                'email': u.email,
+                'first_name': u.first_name,
+                'last_name': u.last_name,
+                'username': u.username,
+            }
+            for u in users
+        ])
 
 
 class UserProfileView(APIView):
@@ -319,5 +399,6 @@ class UserProfileView(APIView):
             'first_name': user.first_name,
             'last_name': user.last_name,
             'username': user.username,
+            'is_staff': user.is_staff,
         })
 

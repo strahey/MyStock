@@ -203,6 +203,16 @@ export const api = {
     return response.json()
   },
 
+  // Admin
+  getUsers: async () => {
+    const response = await apiRequest('/auth/users/')
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}))
+      throw new Error(error.error || 'Failed to load users')
+    }
+    return response.json()
+  },
+
   // Journal
   getJournalEntries: async () => {
     const response = await apiRequest('/journal/')

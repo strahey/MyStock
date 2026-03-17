@@ -13,6 +13,8 @@ from .auth_views import (
     GoogleCallbackView,
     GoogleTokenLoginView,
     DevLoginView,
+    ImpersonateView,
+    UserListView,
     UserProfileView
 )
 
@@ -32,5 +34,7 @@ urlpatterns = [
     path('auth/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('auth/me/', UserProfileView.as_view(), name='user_profile'),
     path('auth/dev-login/', DevLoginView.as_view(), name='dev_login'),
+    path('auth/impersonate/', ImpersonateView.as_view(), name='impersonate'),
+    path('auth/users/', UserListView.as_view(), name='user_list'),
 ]
 

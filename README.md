@@ -11,6 +11,8 @@ A full-stack web application for managing LEGO set inventory across multiple war
 - **Location Management**: Create, edit, and manage warehouse locations
 - **Web Scraping**: Automatically fetch product names and images from LEGO websites
 - **Denormalized History**: Transaction history preserved even after items/locations are deleted
+- **Authentication**: Google OAuth login with JWT tokens; dev-only email login for local development
+- **Admin Impersonation**: Staff users can impersonate any user to view/manage their inventory
 
 ## Tech Stack
 
@@ -313,6 +315,7 @@ Once both servers are running:
 
 ## API Endpoints
 
+### Inventory
 - `GET /api/locations/` - List all locations
 - `POST /api/locations/` - Create a new location
 - `GET /api/items/by_item_id/<item_id>/` - Get item by ID
@@ -322,6 +325,14 @@ Once both servers are running:
 - `GET /api/journal/` - Get all transaction journal entries
 - `GET /api/journal/by_item/<item_id>/` - Get journal entries for an item
 - `GET /api/journal/by_location/<location_id>/` - Get journal entries for a location
+
+### Authentication
+- `POST /api/auth/login/` - Exchange Google ID token for JWT
+- `POST /api/auth/refresh/` - Refresh access token
+- `GET /api/auth/me/` - Get current user profile (includes `is_staff`)
+- `POST /api/auth/dev-login/` - Dev-only email login (DEBUG=True only)
+- `GET /api/auth/users/` - List all users (staff only)
+- `POST /api/auth/impersonate/` - Issue JWT scoped to another user (staff only)
 
 ## Project Structure
 
@@ -343,11 +354,14 @@ mystock/
 │           └── seed_locations.py
 ├── frontend/               # React application
 │   ├── src/
-│   │   ├── App.jsx         # Main React component
-│   │   ├── App.css         # Application styles
-│   │   ├── api.js          # API client
-│   │   ├── main.jsx        # React entry point
-│   │   └── index.css       # Base styles
+│   │   ├── App.jsx             # Main React component
+│   │   ├── App.css             # Application styles
+│   │   ├── api.js              # API client
+│   │   ├── AuthContext.jsx     # Auth state, JWT storage, impersonation
+│   │   ├── Login.jsx           # Google OAuth + dev login form
+│   │   ├── ImpersonatePicker.jsx # Admin user picker modal
+│   │   ├── main.jsx            # React entry point
+│   │   └── index.css           # Base styles
 │   ├── package.json        # Node dependencies
 │   └── vite.config.js      # Vite configuration
 ├── db.sqlite3              # SQLite database
@@ -402,6 +416,28 @@ mystock/
 - Delete locations with inventory transfer
 - Prevents data loss during deletion
 
+### Authentication
+- Google OAuth via `@react-oauth/google` — sign in with your Google account
+- JWT access tokens (1h) and refresh tokens (7d) stored in `localStorage`
+- **Dev login**: when running `npm run dev`, a simple email form appears on the login screen — no password required, no Google credentials needed. Disabled in production (`DEBUG=False`).
+
+### Admin Impersonation
+Staff users (`is_staff=True`) see an **Impersonate User** button in the header. Clicking it opens a searchable user picker. While impersonating:
+- A persistent amber banner shows who is being impersonated and who the real admin is
+- All inventory data (locations, transactions, journal) is scoped to the impersonated user
+- Click **End Impersonation** to restore the admin session without re-logging in
+
+To grant a user staff access:
+```bash
+python manage.py shell -c "
+from django.contrib.auth import get_user_model
+U = get_user_model()
+u = U.objects.get(email='admin@example.com')
+u.is_staff = True
+u.save()
+"
+```
+
 ## Development Notes
 
 ### CORS Configuration
@@ -447,7 +483,6 @@ SQLite is used for simplicity. For production, consider PostgreSQL or MySQL.
 
 ## Future Enhancements
 
-- User authentication and authorization
 - Barcode scanning support
 - Export inventory to CSV/Excel
 - Email notifications for low stock
