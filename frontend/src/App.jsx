@@ -583,74 +583,29 @@ function App() {
   return (
     <div className="app">
       {isImpersonating && (
-        <div style={{
-          background: '#f59e0b',
-          color: '#000',
-          padding: '8px 16px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          fontWeight: 600,
-          fontSize: '0.9em',
-          zIndex: 2000,
-          position: 'sticky',
-          top: 0,
-        }}>
-          <span>
+        <div className="impersonation-banner">
+          <span className="impersonation-text">
             Impersonating: <strong>{user?.email || user?.username}</strong>
-            {adminUser && <span style={{ fontWeight: 400 }}> (you are {adminUser.email})</span>}
+            {adminUser && <span className="impersonation-admin"> (you are {adminUser.email})</span>}
           </span>
-          <button
-            onClick={stopImpersonating}
-            style={{
-              padding: '4px 14px',
-              background: '#000',
-              color: '#f59e0b',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontWeight: 700,
-            }}
-          >
-            End Impersonation
+          <button className="btn-end-impersonation" onClick={stopImpersonating}>
+            End Session
           </button>
         </div>
       )}
       <header className="app-header">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-          <h1>MyStock - LEGO Inventory Management</h1>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-            <span style={{ color: '#666', fontSize: '0.9em' }}>
+        <div className="app-header-top">
+          <h1>MyStock</h1>
+          <div className="app-header-user">
+            <span className="app-header-username">
               {user?.email || user?.username}
             </span>
             {user?.is_staff && !isImpersonating && (
-              <button
-                onClick={() => setShowImpersonatePicker(true)}
-                style={{
-                  padding: '8px 16px',
-                  backgroundColor: '#6366f1',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontSize: '0.9em',
-                }}
-              >
-                Impersonate User
+              <button className="btn-header btn-impersonate" onClick={() => setShowImpersonatePicker(true)}>
+                Impersonate
               </button>
             )}
-            <button
-              onClick={logout}
-              style={{
-                padding: '8px 16px',
-                backgroundColor: '#dc3545',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                fontSize: '0.9em'
-              }}
-            >
+            <button className="btn-header btn-logout" onClick={logout}>
               Logout
             </button>
           </div>

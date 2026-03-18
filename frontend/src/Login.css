@@ -17,6 +17,17 @@
   text-align: center;
 }
 
+@media (max-width: 480px) {
+  .login-card {
+    padding: 28px 20px;
+    border-radius: 8px;
+  }
+
+  .login-card h1 {
+    font-size: 2em;
+  }
+}
+
 .login-card h1 {
   margin: 0 0 10px 0;
   color: #333;
