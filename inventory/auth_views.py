@@ -157,6 +157,7 @@ class GoogleCallbackView(APIView):
                     'first_name': user.first_name,
                     'last_name': user.last_name,
                     'username': user.username,
+                    'is_staff': user.is_staff,
                 }
             })
             
@@ -248,9 +249,10 @@ class GoogleTokenLoginView(APIView):
                     'first_name': user.first_name,
                     'last_name': user.last_name,
                     'username': user.username,
+                    'is_staff': user.is_staff,
                 }
             })
-            
+
         except Exception as e:
             return Response(
                 {'error': f'Authentication failed: {str(e)}'},

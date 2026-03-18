@@ -136,11 +136,15 @@ def scrape_lego_product_info(item_id):
         if response.status_code == 200:
             soup = BeautifulSoup(response.content, 'html.parser')
             html_content = response.text
-            
-            # Try to find the set name
-            name_elem = soup.find('h1', class_='set-title')
+
+            # Try to find the set name (class was removed from h1 in 2025)
+            name_elem = soup.find('h1', class_='set-title') or soup.find('h1')
             if name_elem:
-                product_info['name'] = name_elem.get_text(strip=True)
+                name = name_elem.get_text(strip=True)
+                # Brickset h1 now includes the item_id prefix, e.g. "10317 Land Rover..."
+                if name.startswith(f"{item_id} "):
+                    name = name[len(item_id):].strip()
+                product_info['name'] = name
             
             # Find images using priority pattern matching
             selected_image, all_images = _find_images_by_pattern(soup, item_id, 'https://brickset.com', html_content)
