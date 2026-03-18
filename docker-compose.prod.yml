@@ -42,7 +42,7 @@ services:
     volumes:
       - staticfiles:/app/staticfiles
       - media:/app/media
-    command: bash -c "python manage.py migrate && gunicorn backend.wsgi:application --bind 0.0.0.0:8000"
+    command: bash -c "python manage.py migrate && python manage.py collectstatic --noinput && gunicorn backend.wsgi:application --bind 0.0.0.0:8000"
     depends_on:
       - db
     # expose:
